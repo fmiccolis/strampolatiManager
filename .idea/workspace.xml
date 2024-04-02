@@ -4,13 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b02fedd-54b9-45da-b021-6a5364b20a64" name="Changes" comment="added requirements and fixed gitignore">
+    <list default="true" id="3b02fedd-54b9-45da-b021-6a5364b20a64" name="Changes" comment="changed production settings">
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/dataSources/2249642d-3aef-4de7-a8a9-5caa8980c25e.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/2249642d-3aef-4de7-a8a9-5caa8980c25e.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/strampolatiManager.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/strampolatiManager.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strampolati/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/strampolati/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/api/admin.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,6 +27,11 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="prod" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
@@ -136,7 +139,10 @@
       <workItem from="1711785503690" duration="23723000" />
       <workItem from="1711875431126" duration="16333000" />
       <workItem from="1711902375541" duration="5405000" />
-      <workItem from="1711960506992" duration="906000" />
+      <workItem from="1711960506992" duration="2486000" />
+      <workItem from="1711963009427" duration="132000" />
+      <workItem from="1712077032604" duration="88000" />
+      <workItem from="1712077134833" duration="3047000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />
@@ -154,7 +160,23 @@
       <option name="project" value="LOCAL" />
       <updated>1711904424341</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="changed gitignore">
+      <option name="closed" value="true" />
+      <created>1711961577945</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1711961577945</updated>
+    </task>
+    <task id="LOCAL-00004" summary="changed production settings">
+      <option name="closed" value="true" />
+      <created>1711961632654</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1711961632654</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -163,6 +185,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="first commit" />
     <MESSAGE value="added requirements and fixed gitignore" />
-    <option name="LAST_COMMIT_MESSAGE" value="added requirements and fixed gitignore" />
+    <MESSAGE value="changed gitignore" />
+    <MESSAGE value="changed production settings" />
+    <option name="LAST_COMMIT_MESSAGE" value="changed production settings" />
   </component>
 </project>

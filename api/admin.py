@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Group
+from django.db.models import Sum
+from django.urls import reverse
 from django_celery_beat.models import PeriodicTask, IntervalSchedule, SolarSchedule, ClockedSchedule, CrontabSchedule
 from djmoney.money import Money
 from import_export.admin import ImportExportModelAdmin
@@ -192,13 +194,17 @@ class ContactAdmin(ModelAdmin):
         (_('First Information'), {'fields': (('first_contact', 'full_name', 'phone'),)}),
         (_('Event Information'), {'fields': (('event_date', 'confirm_date'), 'additional_info')}),
     )
-    list_display = ('full_name', 'phone', 'event_date')
+    list_display = ('full_name', 'phone', 'event_date', 'beauty_content')
     inlines = [EventsInline]
     formfield_overrides = {
         django_models.TextField: {
             "widget": WysiwygWidget,
         }
     }
+
+    def beauty_content(self, instance: Contact):
+        return mark_safe(instance.additional_info)
+    beauty_content.short_description = "Info"
 
 
 class TypeAdmin(ModelAdmin):
@@ -222,6 +228,16 @@ class NoteAdmin(ModelAdmin):
             "widget": WysiwygWidget,
         }
     }
+    list_filter = ('event',)
+    list_display = ('date', 'is_event', 'beauty_content')
+
+    def is_event(self, instance: Note):
+        return mark_safe("<span class='material-symbols-outlined md-18 mr-3 w-4.5'>check</span>") if instance.event else None
+    is_event.short_description = "Evento?"
+
+    def beauty_content(self, instance: Note):
+        return mark_safe(instance.content)
+    beauty_content.short_description = "Content"
 
 
 class ExpenseAdmin(ModelAdmin):
@@ -230,6 +246,16 @@ class ExpenseAdmin(ModelAdmin):
             "widget": WysiwygWidget,
         }
     }
+    list_filter = ('event',)
+    list_display = ('date', 'is_event', 'beauty_content')
+
+    def is_event(self, instance: Expense):
+        return mark_safe("<span class='material-symbols-outlined md-18 mr-3 w-4.5'>check</span>") if instance.event else None
+    is_event.short_description = "Evento?"
+
+    def beauty_content(self, instance: Expense):
+        return mark_safe(instance.description)
+    beauty_content.short_description = "Description"
 
 
 class ProviderAdmin(ModelAdmin):
@@ -267,7 +293,7 @@ class EventAdmin(ModelAdmin):
         "agents"
     ]
     filter_horizontal = ('agents',)
-    list_display = ('display_header', 'date', 'location', 'type', 'provider', 'gross', 'list_agents', 'status')
+    list_display = ('display_header', 'provider', 'gross', 'list_agents', 'total_expenses', 'has_notes', 'status')
     ordering = ('-date',)
     inlines = [ExpenseInline, NoteInline]
 
@@ -307,7 +333,17 @@ class EventAdmin(ModelAdmin):
 
     @display(description=_("Driver"), header=True)
     def display_header(self, instance: Event):
-        return ["ciao", "come", "stai"]
+        return [instance.date, f"{instance.type} | {instance.location}"]
+
+    def total_expenses(self, instance: Event):
+        return Money(Expense.objects.filter(event=instance).aggregate(Sum('amount'))['amount__sum'] or 0, "EUR")
+    total_expenses.short_description = "Spese"
+
+    def has_notes(self, instance: Event):
+        if Note.objects.filter(event=instance).count() > 0:
+            return mark_safe(f"<a href='{reverse("admin:api_note_changelist")}?event__id__exact={instance.pk}'><span class='material-symbols-outlined md-18 mr-3 w-4.5'>note</span></a>")
+        return None
+    has_notes.short_description = "Note"
 
 
 class CustomOutstandingTokenAdmin(OutstandingTokenAdmin):
