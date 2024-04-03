@@ -334,7 +334,7 @@ class Expense(TimeStampedModel):
     )
     depreciable = models.BooleanField(
         verbose_name=_('depreciable'),
-        default=0,
+        default=False,
         help_text=_('If true the amount will be split in 5 tax years')
     )
     event = models.ForeignKey(

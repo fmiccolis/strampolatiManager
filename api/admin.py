@@ -1,3 +1,7 @@
+import datetime
+import decimal
+import math
+
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Group
@@ -39,16 +43,31 @@ class EventsInline(TabularInline):
     can_delete = False
 
 
+class ParticipationInline(TabularInline):
+    model = Event.agents.through
+    extra = 0
+
+
 class ExpenseInline(StackedInline):
     model = Expense
     max_num = 3
     extra = 0
+    formfield_overrides = {
+        django_models.TextField: {
+            "widget": WysiwygWidget,
+        }
+    }
 
 
 class NoteInline(StackedInline):
     model = Note
     max_num = 3
     extra = 0
+    formfield_overrides = {
+        django_models.TextField: {
+            "widget": WysiwygWidget,
+        }
+    }
 
 
 class CustomUserAdmin(UserAdmin, ModelAdmin):
@@ -61,19 +80,61 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
         }),
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
     )
-    list_display = ('display_header', 'propic', 'group')
     change_password_form = AdminPasswordChangeForm
     add_form = UserCreationForm
     filter_horizontal = (
         "groups",
         "user_permissions",
     )
+    inlines = [ParticipationInline]
 
-    def propic(self, user: User):
-        if user.profile_pic:
-            return mark_safe(f'<a href="{settings.MEDIA_URL}{user.profile_pic}" target="_blank">vedi foto</a>')
+    def get_list_display(self, request):
+        base_list = ('display_header', 'event_total')
+        if request.user.is_superuser or request.user.groups.filter(name__exact="Member").exists():
+            base_list += ('earnings',)
+        base_list += ('group',)
+        return base_list
 
-    propic.short_description = "immagine profilo"
+    def event_total(self, user: User):
+        now = datetime.datetime.now()
+        dones = Event.objects.filter(agents__id__exact=user.pk, date__lt=now).count()
+        to_do = Event.objects.filter(agents__id__exact=user.pk, date__gte=now).count()
+        id_filter = f"agents__id__exact={user.pk}"
+        dlt_filter = f"date__lt={now:%Y-%m-%d}"
+        dgte_filter = f"date__gte={now:%Y-%m-%d}"
+        return mark_safe(
+            f"<a href='{reverse("admin:api_event_changelist")}?{id_filter}&{dlt_filter}'>{dones}</a> "
+            f"(<a href='{reverse("admin:api_event_changelist")}?{id_filter}&{dgte_filter}'>{to_do}</a>)"
+            if user.groups.filter(name__in=['Member', 'Viewer']).exists() else ""
+        )
+
+    event_total.short_description = "Totale eventi"
+
+    def earnings(self, user: User):
+        total_earnings = None
+        events = Event.objects.filter(agents__email=user.email)
+        p_settings = settings.SM_SETTINGS["PAYMENTS"]
+        if events.exists():
+            if user.groups.filter(name__exact="Member").exists():
+                sett = p_settings["MEMBER"]
+                total_earnings = 0
+            elif user.groups.filter(name__exact="Viewer").exists():
+                sett = p_settings["VIEWER"]
+                total_earnings = 0
+            else:
+                return ""
+
+            for evt in events:
+                total_earnings += 5 * round((evt.payment.amount * max(
+                    sett["MIN"],
+                    min(
+                        decimal.Decimal(math.floor((evt.payment.amount * sett["DECREMENT"] + sett["SHOT"])*250)/250),
+                        sett["MAX"]
+                    )
+                ))/5)
+        return Money(total_earnings, "EUR") if total_earnings else ""
+
+    earnings.short_description = "Guadagni"
 
     @display(
         description=_("Role"),
@@ -92,7 +153,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
     @display(description=_("Agent"), header=True)
     def display_header(self, instance: User):
         initials = f"{instance.first_name[0]}{instance.last_name[0]}" if instance.first_name and instance.last_name else "AB"
-        return [instance.nominativo(), instance.email, initials]
+        return [instance.nominativo(), instance.email, mark_safe(f"<img src='/{instance.profile_pic}' style='height:100%;object-fit:cover' alt='damn' />") if instance.profile_pic else initials]
 
 
 class LocationAdmin(ModelAdmin):
@@ -179,14 +240,16 @@ class ItemAdmin(ModelAdmin):
     fieldsets = (
         (None, {'fields': (('name', 'quantity'), 'image')}),
     )
-    list_display = ('name', 'quantity', 'item_image')
-    list_filter = ('quantity',)
+    list_display = ('item_image', 'name', 'quantity')
+    list_filter = [('quantity', RangeNumericFilter), ]
+    list_filter_submit = True
 
+    @display(description=_("Image"), header=True)
     def item_image(self, item: Item):
+        src = f"{settings.STATIC_URL}/images/defaults/item_default.jpg"
         if item.image:
-            return mark_safe(f'<a href="{settings.MEDIA_URL}{item.image}" target="_blank">vedi immagine</a>')
-
-    item_image.short_description = "immagine"
+            src = f"{settings.MEDIA_URL}{item.image}"
+        return [mark_safe(f'<img src="{src}" style="width:clamp(100px,10vw,300px)" alt="damn" />')]
 
 
 class ContactAdmin(ModelAdmin):
@@ -214,12 +277,26 @@ class TypeAdmin(ModelAdmin):
             "widget": WysiwygWidget,
         }
     }
+    list_display = ('name', 'beauty_description')
+
+    def beauty_description(self, instance: Type):
+        return mark_safe(instance.description)
+    beauty_description.short_description = _("Description")
 
 
 class ExpenseCategoryAdmin(ModelAdmin):
     fieldsets = (
         (None, {'fields': (('name', 'code'), 'parent')}),
     )
+    list_display = ('name', 'compute_code', 'parent')
+
+    def compute_code(self, instance: ExpenseCategory):
+        parent = instance.parent
+        final_code = ""
+        if parent:
+            final_code += self.compute_code(parent)
+        return final_code + instance.code
+    compute_code.short_description = _("Code")
 
 
 class NoteAdmin(ModelAdmin):
@@ -264,14 +341,15 @@ class ProviderAdmin(ModelAdmin):
         (_('Personal info'), {'fields': (('email', 'phone'), 'profile_pic')}),
         (_('Company info'), {'fields': (('company_name', 'vat_number'),)}),
     )
-    list_display = ('nominativo', 'phone', 'propic')
+    list_display = ('propic', 'nominativo', 'phone')
     inlines = [EventsInline]
 
-    def propic(self, provider: Provider):
-        if provider.profile_pic:
-            return mark_safe(f'<a href="{settings.MEDIA_URL}{provider.profile_pic}" target="_blank">vedi foto</a>')
-
-    propic.short_description = "immagine profilo"
+    @display(description=_(""), header=True)
+    def propic(self, item: Provider):
+        src = f"{settings.STATIC_URL}/images/defaults/person_default.jpg"
+        if item.profile_pic:
+            src = f"{settings.MEDIA_URL}{item.profile_pic}"
+        return [mark_safe(f'<img src="{src}" style="width:clamp(100px,10vw,300px)" alt="damn" />')]
 
 
 class EventAdmin(ModelAdmin):
@@ -292,6 +370,7 @@ class EventAdmin(ModelAdmin):
         "provider",
         "agents"
     ]
+    list_filter_submit = True
     filter_horizontal = ('agents',)
     list_display = ('display_header', 'provider', 'gross', 'list_agents', 'total_expenses', 'has_notes', 'status')
     ordering = ('-date',)
@@ -303,8 +382,12 @@ class EventAdmin(ModelAdmin):
     gross.short_description = "Lordo"
 
     def list_agents(self, event: Event):
-        if event.agents.count() > 0:
-            return ", ".join([agent.first_name for agent in event.agents.all()])
+        links = []
+        agents = event.agents
+        if agents.count() > 0:
+            for agent in agents.all():
+                links.append(f"<a href='{reverse("admin:api_user_change", kwargs={'object_id': agent.pk})}'>{agent.first_name}</a>")
+        return mark_safe(", ".join(links))
     list_agents.short_description = "Agenti"
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):

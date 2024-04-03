@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
+import decimal
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -18,7 +19,6 @@ from django.templatetags.static import static
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -30,7 +30,6 @@ SECRET_KEY = 'django-insecure-na#1e$-!+y_-_hz%9u$qq0m8l*47y&@_cuic&wbc(fr&(xz58x
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -240,7 +239,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'strampolati.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
@@ -250,7 +248,6 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -272,7 +269,6 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LOGIN_URL = "admin:login"
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 
@@ -289,7 +285,6 @@ LANGUAGES = (
     ("en", _("English")),
     ("it", _("Italian")),
 )
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
@@ -322,6 +317,30 @@ LOGOUT_REDIRECT_URL = reverse_lazy("admin:index")
 LOGIN_REDIRECT_URL = reverse_lazy("admin:index")
 
 X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+SM_SETTINGS = {
+    "PAYMENTS": {
+        "MEMBER": {
+            "MIN": decimal.Decimal(0.8),
+            "DECREMENT": decimal.Decimal(-5/3000),
+            "SHOT": decimal.Decimal(1+35/300),
+            "MAX": decimal.Decimal(0.95),
+        },
+        "VIEWER": {
+            "MIN": decimal.Decimal(0.7),
+            "DECREMENT": decimal.Decimal(-5/3000),
+            "SHOT": decimal.Decimal(1+5/300),
+            "MAX": decimal.Decimal(0.85),
+        },
+    },
+    "CONSUMPTIONS": {
+        "KM_PER_LITER": decimal.Decimal(100/6.8),
+        "COST_PER_LITER": decimal.Decimal(2.049),
+    },
+    "EVALUATIONS": {
+        "YEARS": 5
+    }
+}
 
 UNFOLD = {
     "SITE_HEADER": _("Strampolati Manager"),
