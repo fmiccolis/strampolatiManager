@@ -20,7 +20,7 @@ from rest_framework_simplejwt.token_blacklist.admin import OutstandingTokenAdmin
 from django.utils.translation import gettext, gettext_lazy as _
 from unfold.contrib.filters.admin import RangeNumericFilter, SingleNumericFilter, RangeDateFilter
 from unfold.decorators import display
-from unfold.forms import AdminPasswordChangeForm, UserCreationForm
+from unfold.forms import AdminPasswordChangeForm, UserCreationForm, UserChangeForm
 from unfold.contrib.forms.widgets import WysiwygWidget
 from unfold.contrib.import_export.forms import ExportForm, ImportForm
 
@@ -82,6 +82,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
     )
     change_password_form = AdminPasswordChangeForm
     add_form = UserCreationForm
+    form = UserChangeForm
     filter_horizontal = (
         "groups",
         "user_permissions",
@@ -243,6 +244,7 @@ class ItemAdmin(ModelAdmin):
     list_display = ('item_image', 'name', 'quantity')
     list_filter = [('quantity', RangeNumericFilter), ]
     list_filter_submit = True
+    list_editable = ('quantity',)
 
     @display(description=_("Image"), header=True)
     def item_image(self, item: Item):
@@ -257,7 +259,7 @@ class ContactAdmin(ModelAdmin):
         (_('First Information'), {'fields': (('first_contact', 'full_name', 'phone'),)}),
         (_('Event Information'), {'fields': (('event_date', 'confirm_date'), 'additional_info')}),
     )
-    list_display = ('full_name', 'phone', 'event_date', 'beauty_content')
+    list_display = ('full_name', 'phone', 'event_date', 'beauty_content', 'status')
     inlines = [EventsInline]
     formfield_overrides = {
         django_models.TextField: {
@@ -268,6 +270,24 @@ class ContactAdmin(ModelAdmin):
     def beauty_content(self, instance: Contact):
         return mark_safe(instance.additional_info)
     beauty_content.short_description = "Info"
+
+    @display(
+        description=_("Status"),
+        ordering="status",
+        label={
+            "Perso": "danger",
+            "Confermabile": "warning",
+            "Confermato": "success",
+        }
+    )
+    def status(self, instance: Contact):
+        current_status = "Perso"
+        if instance.event_date is None or instance.event_date > datetime.date.today():
+            current_status = "Confermabile"
+        if instance.confirm_date is not None:
+            current_status = "Confermato"
+        return current_status
+    status.short_description = _("Status")
 
 
 class TypeAdmin(ModelAdmin):
@@ -341,7 +361,7 @@ class ProviderAdmin(ModelAdmin):
         (_('Personal info'), {'fields': (('email', 'phone'), 'profile_pic')}),
         (_('Company info'), {'fields': (('company_name', 'vat_number'),)}),
     )
-    list_display = ('propic', 'nominativo', 'phone')
+    list_display = ('propic', 'nominativo', 'call_phone')
     inlines = [EventsInline]
 
     @display(description=_(""), header=True)
@@ -351,14 +371,18 @@ class ProviderAdmin(ModelAdmin):
             src = f"{settings.MEDIA_URL}{item.profile_pic}"
         return [mark_safe(f'<img src="{src}" style="width:clamp(100px,10vw,300px)" alt="damn" />')]
 
+    def call_phone(self, instance: Provider):
+        return mark_safe(f"<a href='tel:{instance.phone}'><span class='material-symbols-outlined md-18 mr-3 w-4.5'>phone</span>&nbsp;{instance.phone}</a>")
+    call_phone.short_description = _("Phone")
+
 
 class EventAdmin(ModelAdmin):
     fieldsets = (
-        (_('Time info'), {'fields': (('date', 'start_time', 'end_time'),)}),
-        (_('Location info'), {'fields': (('distance', 'location'),)}),
-        (_('Type and people info'), {'fields': (('type', 'contact', 'provider'),)}),
-        (_('Payment info'), {'fields': ('agents', ('payment', 'extra', 'busker'),)}),
-        (_('Invoice info'), {'fields': (('sent', 'paid'),)}),
+        (_('Time info'), {'classes': ["tab"], 'fields': (('date', 'start_time', 'end_time'),)}),
+        (_('Location info'), {'classes': ["tab"], 'fields': (('distance', 'location'),)}),
+        (_('Type and people info'), {'classes': ["tab"], 'fields': (('type', 'contact', 'provider'),)}),
+        (_('Payment info'), {'classes': ["tab"], 'fields': ('agents', ('payment', 'extra', 'busker'),)}),
+        (_('Invoice info'), {'classes': ["tab"], 'fields': (('sent', 'paid'),)}),
     )
     list_filter = [
         # ("date", RangeNumericFilter),
