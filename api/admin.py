@@ -38,8 +38,8 @@ admin.site.unregister(Group)
 class EventsInline(TabularInline):
     model = Event
     extra = 0
-    fields = ['date', 'location', 'type', 'provider', 'contact']
-    readonly_fields = ['date', 'location', 'type', 'provider', 'contact']
+    fields = ['start_date', 'location', 'type', 'provider', 'contact']
+    readonly_fields = ['start_date', 'location', 'type', 'provider', 'contact']
     can_delete = False
 
 
@@ -98,11 +98,11 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
 
     def event_total(self, user: User):
         now = datetime.datetime.now()
-        dones = Event.objects.filter(agents__id__exact=user.pk, date__lt=now).count()
-        to_do = Event.objects.filter(agents__id__exact=user.pk, date__gte=now).count()
+        dones = Event.objects.filter(agents__id__exact=user.pk, start_date__lt=now).count()
+        to_do = Event.objects.filter(agents__id__exact=user.pk, start_date__gte=now).count()
         id_filter = f"agents__id__exact={user.pk}"
-        dlt_filter = f"date__lt={now:%Y-%m-%d}"
-        dgte_filter = f"date__gte={now:%Y-%m-%d}"
+        dlt_filter = f"start_date__lt={now:%Y-%m-%d}"
+        dgte_filter = f"start_date__gte={now:%Y-%m-%d}"
         return mark_safe(
             f"<a href='{reverse("admin:api_event_changelist")}?{id_filter}&{dlt_filter}'>{dones}</a> "
             f"(<a href='{reverse("admin:api_event_changelist")}?{id_filter}&{dgte_filter}'>{to_do}</a>)"
@@ -113,7 +113,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
 
     def earnings(self, user: User):
         total_earnings = None
-        events = Event.objects.filter(agents__email=user.email)
+        events = Event.objects.filter(agents__email=user.email, paid__isnull=False)
         p_settings = settings.SM_SETTINGS["PAYMENTS"]
         if events.exists():
             if user.groups.filter(name__exact="Member").exists():
@@ -378,7 +378,7 @@ class ProviderAdmin(ModelAdmin):
 
 class EventAdmin(ModelAdmin):
     fieldsets = (
-        (_('Time info'), {'classes': ["tab"], 'fields': (('date', 'start_time', 'end_time'),)}),
+        (_('Time info'), {'classes': ["tab"], 'fields': ('start_date', 'end_date',)}),
         (_('Location info'), {'classes': ["tab"], 'fields': (('distance', 'location'),)}),
         (_('Type and people info'), {'classes': ["tab"], 'fields': (('type', 'contact', 'provider'),)}),
         (_('Payment info'), {'classes': ["tab"], 'fields': ('agents', ('payment', 'extra', 'busker'),)}),
@@ -387,7 +387,7 @@ class EventAdmin(ModelAdmin):
     list_filter = [
         # ("date", RangeNumericFilter),
         # ("laps", SingleNumericFilter),
-        ("date", RangeDateFilter),
+        ("start_date", RangeDateFilter),
         "location",
         "type",
         "contact",
@@ -397,7 +397,7 @@ class EventAdmin(ModelAdmin):
     list_filter_submit = True
     filter_horizontal = ('agents',)
     list_display = ('display_header', 'provider', 'gross', 'list_agents', 'total_expenses', 'has_notes', 'status')
-    ordering = ('-date',)
+    ordering = ('-start_date',)
     inlines = [ExpenseInline, NoteInline]
 
     def gross(self, event: Event):
@@ -440,7 +440,7 @@ class EventAdmin(ModelAdmin):
 
     @display(description=_("Driver"), header=True)
     def display_header(self, instance: Event):
-        return [instance.date, f"{instance.type} | {instance.location}"]
+        return [instance.start_date, f"{instance.type} | {instance.location}"]
 
     def total_expenses(self, instance: Event):
         return Money(Expense.objects.filter(event=instance).aggregate(Sum('amount'))['amount__sum'] or 0, "EUR")

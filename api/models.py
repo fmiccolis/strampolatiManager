@@ -1,12 +1,17 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+import logging
+import pytz
 
+from django import forms
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.translation import gettext, gettext_lazy as _
+from django.utils import timezone
 from django_extensions.db.models import TimeStampedModel
 from djmoney.models.fields import MoneyField
 
+logger = logging.getLogger("custom")
 
 # Create your models here.
 class User(TimeStampedModel, AbstractUser):
@@ -44,15 +49,15 @@ class Location(TimeStampedModel):
         max_length=100
     )
     latitude = models.FloatField(
-        verbose_name=_('latitudine'),
-        help_text=_('latidudine della location'),
+        verbose_name=_('latitude'),
+        help_text=_('latidude of the location'),
         validators=[MinValueValidator(-90.0000000), MaxValueValidator(90.0000000)],
         null=True,
         blank=True
     )
     longitude = models.FloatField(
-        verbose_name=_('longitudine'),
-        help_text=_('longitudine della location'),
+        verbose_name=_('longitude'),
+        help_text=_('longitude of the location'),
         validators=[MinValueValidator(-180.0000000), MaxValueValidator(180.0000000)],
         null=True,
         blank=True
@@ -62,6 +67,7 @@ class Location(TimeStampedModel):
         db_table = 'location'
         verbose_name = 'location'
         verbose_name_plural = _('locations')
+        unique_together = ('city', 'name')
 
     def __str__(self):
         return f"{self.city} - {self.name}"
@@ -71,7 +77,8 @@ class Type(TimeStampedModel):
     name = models.CharField(
         verbose_name=_('name'),
         help_text=_('The name of the type'),
-        max_length=100
+        max_length=100,
+        unique=True
     )
     description = models.TextField(
         verbose_name=_('description'),
@@ -99,7 +106,8 @@ class Contact(TimeStampedModel):
     full_name = models.CharField(
         verbose_name=_('full name'),
         max_length=100,
-        help_text=_("The name of the person who contacted")
+        help_text=_("The name of the person who contacted"),
+        unique=True
     )
     event_date = models.DateField(
         verbose_name=_('event date'),
@@ -112,7 +120,8 @@ class Contact(TimeStampedModel):
         max_length=10,
         help_text=_('The phone number of the contact'),
         null=True,
-        blank=True
+        blank=True,
+        unique=True
     )
     confirm_date = models.DateField(
         verbose_name=_('confirm date'),
@@ -153,36 +162,41 @@ class Provider(TimeStampedModel):
     phone = models.CharField(
         verbose_name=_('phone'),
         max_length=10,
-        help_text=_('The phone number of the provider')
+        help_text=_('The phone number of the provider'),
+        unique=True
     )
     email = models.EmailField(
         verbose_name=_('email'),
         null=True,
         blank=True,
-        max_length=100
+        max_length=100,
+        unique=True
     )
     company_name = models.CharField(
         verbose_name=_('company name'),
         null=True,
         blank=True,
-        max_length=100
+        max_length=100,
+        unique=True
     )
     vat_number = models.CharField(
         verbose_name=_('vat number'),
         null=True,
         blank=True,
-        max_length=100
+        max_length=100,
+        unique=True
     )
 
     class Meta:
         db_table = 'provider'
         verbose_name = 'provider'
         verbose_name_plural = _('providers')
+        unique_together = ('first_name', 'last_name')
 
     def nominativo(self):
         return f"{self.first_name} {self.last_name}"
 
-    nominativo.short_description = _('full name')
+    nominativo.short_description = _('fullname')
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
@@ -191,7 +205,8 @@ class Provider(TimeStampedModel):
 class Item(TimeStampedModel):
     name = models.CharField(
         verbose_name=_('name'),
-        max_length=100
+        max_length=100,
+        unique=True
     )
     image = models.ImageField(
         verbose_name=_('image'),
@@ -218,7 +233,8 @@ class Item(TimeStampedModel):
 class ExpenseCategory(TimeStampedModel):
     name = models.CharField(
         verbose_name=_('name'),
-        max_length=100
+        max_length=100,
+        unique=True
     )
     code = models.CharField(
         verbose_name=_('code'),
@@ -237,23 +253,26 @@ class ExpenseCategory(TimeStampedModel):
         verbose_name = 'expense category'
         verbose_name_plural = _('expense categories')
 
+    def clean(self):
+        ecs = ExpenseCategory.objects.filter(parent=self.parent)
+        for ec in ecs:
+            if ec.code == self.code:
+                raise forms.ValidationError({'code': [_(f"Code already in use for ExpenseCategory '{ec.name}'.")]})
+
     def __str__(self):
         return f"{self.name}"
 
 
 class Event(TimeStampedModel):
-    date = models.DateField(
-        verbose_name=_('date'),
-        default=datetime.now,
-        help_text=_('The date of the event')
-    )
-    start_time = models.TimeField(
+    start_date = models.DateTimeField(
         verbose_name=_('start time'),
-        help_text=_('Create the start time initially but return to edit after the event to track the real job')
+        default=timezone.now,
+        help_text=_('On what day and at what time the event starts')
     )
-    end_time = models.TimeField(
+    end_date = models.DateTimeField(
         verbose_name=_('end time'),
-        help_text=_('Create the end time initially but return to edit after the event to track the real job')
+        default=timezone.now() + timedelta(hours=2),
+        help_text=_('On what day and at what time the event ends')
     )
     location = models.ForeignKey(
         Location,
@@ -316,8 +335,12 @@ class Event(TimeStampedModel):
         verbose_name = 'event'
         verbose_name_plural = _('events')
 
+    def clean(self):
+        if self.end_date < self.start_date:
+            raise forms.ValidationError({'end_date': ["End date should be greater than start date."]})
+
     def __str__(self):
-        return f"{self.date} | {self.location} | {self.type}"
+        return f"{self.start_date:%d/%m/%Y} | {self.location} | {self.type}"
 
 
 class Expense(TimeStampedModel):
@@ -383,25 +406,3 @@ class Note(TimeStampedModel):
 
     def __str__(self):
         return f"{self.date}"
-
-
-class Participation:
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        verbose_name=_('user')
-    )
-    event = models.ForeignKey(
-        Event,
-        on_delete=models.CASCADE,
-        verbose_name=_('event')
-    )
-
-    class Meta:
-        db_table = 'participation'
-        verbose_name = 'participation'
-        verbose_name_plural = _('participations')
-
-    def __str__(self):
-        return f"{self.user} - {self.event}"
-
