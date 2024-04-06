@@ -322,20 +322,20 @@ SM_SETTINGS = {
     "PAYMENTS": {
         "MEMBER": {
             "MIN": decimal.Decimal(0.8),
-            "DECREMENT": decimal.Decimal(-5/3000),
-            "SHOT": decimal.Decimal(1+35/300),
+            "DECREMENT": decimal.Decimal(-5 / 3000),
+            "SHOT": decimal.Decimal(1 + 35 / 300),
             "MAX": decimal.Decimal(0.95),
         },
         "VIEWER": {
             "MIN": decimal.Decimal(0.7),
-            "DECREMENT": decimal.Decimal(-5/3000),
-            "SHOT": decimal.Decimal(1+5/300),
+            "DECREMENT": decimal.Decimal(-5 / 3000),
+            "SHOT": decimal.Decimal(1 + 5 / 300),
             "MAX": decimal.Decimal(0.85),
         },
     },
     "CONSUMPTIONS": {
-        "KM_PER_LITER": decimal.Decimal(100/6.8),
-        "COST_PER_LITER": decimal.Decimal(2.049),
+        "KM_PER_LITER": decimal.Decimal(100 / 7.5),
+        "COST_PER_LITER": decimal.Decimal(1.801),
     },
     "EVALUATIONS": {
         "YEARS": 5

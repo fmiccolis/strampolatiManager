@@ -1,11 +1,16 @@
+import decimal
+import math
 from datetime import datetime, timedelta
 import logging
 import pytz
 
 from django import forms
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import Sum
+from django.utils.functional import cached_property
 from django.utils.translation import gettext, gettext_lazy as _
 from django.utils import timezone
 from django_extensions.db.models import TimeStampedModel
@@ -330,6 +335,73 @@ class Event(TimeStampedModel):
         blank=True
     )
 
+    @cached_property
+    def consumption(self):
+        props = settings.SM_SETTINGS["CONSUMPTIONS"]
+        cons = 5 * math.ceil(((decimal.Decimal(self.distance)/props["KM_PER_LITER"])*props["COST_PER_LITER"]*decimal.Decimal(1.1))/5)
+        return cons
+
+    @cached_property
+    def gross(self):
+        return (self.agents.count() * self.payment.amount) + self.extra.amount + self.busker.amount
+
+    def get_payment(self, properties):
+        pay = 5 * round((self.payment.amount * max(
+                    properties["MIN"],
+                    min(
+                        decimal.Decimal(math.floor((self.payment.amount * properties["DECREMENT"] + properties["SHOT"])*250)/250),
+                        properties["MAX"]
+                    )
+                ))/5)
+        return pay
+
+    @cached_property
+    def member_payment(self):
+        for agent in self.agents.all():
+            group_names = list(agent.groups.values_list('name', flat=True))
+            if "Member" in group_names:
+                return self.get_payment(settings.SM_SETTINGS["PAYMENTS"]["MEMBER"])
+        return 0
+
+    @cached_property
+    def viewer_payment(self):
+        for agent in self.agents.all():
+            group_names = list(agent.groups.values_list('name', flat=True))
+            if "Viewer" in group_names:
+                return self.get_payment(settings.SM_SETTINGS["PAYMENTS"]["VIEWER"])
+        return 0
+
+    @cached_property
+    def total_expenses(self):
+        return Expense.objects.filter(event=self).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    def agents_cost(self):
+        member_agents = 0
+        for agent in self.agents.all():
+            group_names = list(agent.groups.values_list('name', flat=True))
+            if "Member" in group_names:
+                member_agents += 1
+        member_cost = member_agents * self.member_payment
+        viewer_cost = (self.agents.count() - member_agents) * self.viewer_payment
+        return [member_cost, viewer_cost]
+
+    @cached_property
+    def agency_percentage(self):
+        real_busker = 0 if self.provider is None else self.busker.amount
+        costs = self.agents_cost()
+        return self.gross - real_busker - costs[0] - costs[1] - self.extra.amount
+
+    @cached_property
+    def net(self):
+        if self.payment.amount is None:
+            return self.busker.amount - self.total_expenses
+        costs = self.agents_cost()
+        return self.gross - costs[0] - costs[1] - self.total_expenses
+
+    @cached_property
+    def cash_fund(self):
+        return 0
+
     class Meta:
         db_table = 'event'
         verbose_name = 'event'
@@ -404,5 +476,54 @@ class Note(TimeStampedModel):
         verbose_name = 'note'
         verbose_name_plural = _('notes')
 
+    def clean(self):
+        event = self.event
+        if event:
+            self.date = event.end_date
+
     def __str__(self):
-        return f"{self.date}"
+        return f"{self.date:%d/%m/%Y}"
+
+
+class Setting(TimeStampedModel):
+    name = models.CharField(
+        verbose_name=_('name'),
+        help_text=_('The name of the setting'),
+        max_length=100
+    )
+    value = models.CharField(
+        verbose_name=_('value'),
+        help_text=_('The value of the setting. This value is stored as a string for compliance purpose'),
+        max_length=500
+    )
+    value_type = models.CharField(
+        verbose_name=_('Type'),
+        help_text=_('The type of the setting'),
+        max_length=1,
+        choices=(('s', 'string'), ('i', 'integer'), ('b', 'boolean'), ('f', 'float')),
+        default='s'
+    )
+    description = models.TextField(
+        verbose_name=_('description'),
+        help_text=_('The description of the setting'),
+        null=True,
+        blank=True
+    )
+
+    class Meta:
+        db_table = 'setting'
+        verbose_name = 'setting'
+        verbose_name_plural = _('settings')
+
+    def actual_value(self):
+        types = {
+            's': str,
+            'i': int,
+            'b': (lambda v: v.lower().startswith('t') or v.startswith('1')),
+            'f': float
+        }
+        return types[self.value_type](self.value)
+
+    def __str__(self):
+        return f"{self.name}"
+

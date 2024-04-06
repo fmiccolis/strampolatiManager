@@ -1,11 +1,15 @@
 import datetime
 import decimal
 import math
+from typing import Any
+import logging
 
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Group
-from django.db.models import Sum
+from django.db.models import Sum, Model, Max
+from django.forms import Form
+from django.http import HttpRequest
 from django.urls import reverse
 from django_celery_beat.models import PeriodicTask, IntervalSchedule, SolarSchedule, ClockedSchedule, CrontabSchedule
 from djmoney.money import Money
@@ -24,7 +28,9 @@ from unfold.forms import AdminPasswordChangeForm, UserCreationForm, UserChangeFo
 from unfold.contrib.forms.widgets import WysiwygWidget
 from unfold.contrib.import_export.forms import ExportForm, ImportForm
 
-from api.models import User, Location, Type, ExpenseCategory, Item, Contact, Provider, Event, Expense, Note
+from api.models import User, Location, Type, ExpenseCategory, Item, Contact, Provider, Event, Expense, Note, Setting
+
+logger = logging.getLogger("custom")
 
 # Register your models here.
 admin.site.unregister(PeriodicTask)
@@ -164,6 +170,7 @@ class LocationAdmin(ModelAdmin):
     ]
     list_display = ('city', 'name', 'go_on_maps')
     list_filter = ('city', 'name')
+    ordering = ('city','name')
     readonly_fields = ('show_map',)
     inlines = [EventsInline]
 
@@ -396,14 +403,9 @@ class EventAdmin(ModelAdmin):
     ]
     list_filter_submit = True
     filter_horizontal = ('agents',)
-    list_display = ('display_header', 'provider', 'gross', 'list_agents', 'total_expenses', 'has_notes', 'status')
+    list_display = ('display_header', 'provider', 'gross', 'net', 'list_agents', 'total_expenses', 'has_notes', 'status')
     ordering = ('-start_date',)
     inlines = [ExpenseInline, NoteInline]
-
-    def gross(self, event: Event):
-        if event.agents.count() > 0:
-            return Money((event.agents.count() * event.payment.amount) + event.extra.amount + event.busker.amount, 'EUR')
-    gross.short_description = "Lordo"
 
     def list_agents(self, event: Event):
         links = []
@@ -442,15 +444,46 @@ class EventAdmin(ModelAdmin):
     def display_header(self, instance: Event):
         return [instance.start_date, f"{instance.type} | {instance.location}"]
 
-    def total_expenses(self, instance: Event):
-        return Money(Expense.objects.filter(event=instance).aggregate(Sum('amount'))['amount__sum'] or 0, "EUR")
-    total_expenses.short_description = "Spese"
-
     def has_notes(self, instance: Event):
         if Note.objects.filter(event=instance).count() > 0:
             return mark_safe(f"<a href='{reverse("admin:api_note_changelist")}?event__id__exact={instance.pk}'><span class='material-symbols-outlined md-18 mr-3 w-4.5'>note</span></a>")
         return None
     has_notes.short_description = "Note"
+
+
+class SettingAdmin(ModelAdmin):
+    formfield_overrides = {
+        django_models.TextField: {
+            "widget": WysiwygWidget,
+        }
+    }
+    list_display = ('name', 'value')
+    ordering = ('name',)
+    edit_exclude = ('name', 'value_type')
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            return ('name', 'value_type')
+        return super().get_exclude(request, obj)
+
+    def get_exclude(self, request, obj=None):
+        if obj:
+            return ('name', 'value_type')
+        return super().get_exclude(request, obj)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        max_ids = qs.values('name').annotate(max_id=Max("id")).values_list("max_id", flat=True)
+        return qs.filter(pk__in=max_ids)
+
+    def save_model(
+        self, request: HttpRequest, obj: Model, form: Form, change: Any
+    ) -> None:
+        if obj.pk is not None:
+            old = Setting.objects.get(pk=obj.pk)
+            obj.pk = None if old.value != obj.value else obj.pk
+
+        super().save_model(request, obj, form, change)
 
 
 class CustomOutstandingTokenAdmin(OutstandingTokenAdmin):
@@ -502,3 +535,4 @@ admin.site.register(Provider, ProviderAdmin)
 admin.site.register(Event, EventAdmin)
 admin.site.register(Expense, ExpenseAdmin)
 admin.site.register(Note, NoteAdmin)
+admin.site.register(Setting, SettingAdmin)
