@@ -525,6 +525,13 @@ UNFOLD = {
                         "permission": "strampolati.utils.permission_callback",
                         # "permission": lambda request: request.user.is_superuser,
                     },
+                    {
+                        "title": _("Settings"),
+                        "icon": "settings",
+                        "link": reverse_lazy("admin:api_setting_changelist"),
+                        # "permission": "strampolati.utils.permission_callback",
+                        "permission": lambda request: request.user.is_superuser,
+                    },
                 ],
             },
             {

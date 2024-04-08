@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.db.models import Sum, Model, Max
-from django.forms import Form
+from django.forms import Form, ModelForm
 from django.http import HttpRequest
 from django.urls import reverse
 from django_celery_beat.models import PeriodicTask, IntervalSchedule, SolarSchedule, ClockedSchedule, CrontabSchedule
@@ -403,7 +403,7 @@ class EventAdmin(ModelAdmin):
     ]
     list_filter_submit = True
     filter_horizontal = ('agents',)
-    list_display = ('display_header', 'provider', 'gross', 'net', 'list_agents', 'total_expenses', 'has_notes', 'status')
+    list_display = ('display_header', 'distance', 'consumption', 'provider', 'payment', 'extra', 'busker', 'gross', 'list_agents', 'total_expenses', 'has_notes', 'status')
     ordering = ('-start_date',)
     inlines = [ExpenseInline, NoteInline]
 
@@ -452,23 +452,39 @@ class EventAdmin(ModelAdmin):
 
 
 class SettingAdmin(ModelAdmin):
+    fieldsets = [
+        (_("Current"), {
+            'classes': ["tab"],
+            'fields': [
+                ('name', 'value_type'), 'value', 'description'
+            ],
+        }),
+        (_("Old"), {
+            'classes': ["tab"],
+            'fields': [
+                ('list_old',),
+            ],
+            'description': _("Here are stored the old values for this setting")
+        }),
+    ]
     formfield_overrides = {
         django_models.TextField: {
             "widget": WysiwygWidget,
         }
     }
-    list_display = ('name', 'value')
+    readonly_fields = ('list_old',)
+    list_display = ('name', 'modified', 'value')
     ordering = ('name',)
     edit_exclude = ('name', 'value_type')
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
-            return ('name', 'value_type')
-        return super().get_exclude(request, obj)
+            return self.edit_exclude + self.readonly_fields
+        return super().get_readonly_fields(request, obj)
 
     def get_exclude(self, request, obj=None):
         if obj:
-            return ('name', 'value_type')
+            return self.edit_exclude
         return super().get_exclude(request, obj)
 
     def get_queryset(self, request):
@@ -484,6 +500,54 @@ class SettingAdmin(ModelAdmin):
             obj.pk = None if old.value != obj.value else obj.pk
 
         super().save_model(request, obj, form, change)
+
+    def list_old(self, instance: Setting):
+        old_ones = Setting.objects.filter(name=instance.name).exclude(id=instance.id).order_by('-modified')
+        htmlCode = f"""
+            <div>
+                <table class="border border-gray-200 border-spacing-none border-separate mb-6 rounded-md shadow-sm text-gray-700 w-full dark:border-gray-800">
+                    <thead class="hidden lg:table-header-group">
+                        <tr>
+                            <th class="column-start_date align-middle border-b border-gray-200 font-medium px-3 py-2 text-left text-gray-400 text-sm dark:border-gray-800">
+                                <span class="flex flex-row items-center">
+                                    Date
+                                        <span class="cursor-pointer material-symbols-outlined ml-2" title="On what day the setting was modified">help</span>
+                                </span>
+                            </th>
+                            <th class="column-location align-middle border-b border-gray-200 font-medium px-3 py-2 text-left text-gray-400 text-sm dark:border-gray-800">
+                                <span class="flex flex-row items-center">
+                                    Value
+                                </span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="original" colspan="10">
+                                <p class="align-middle flex font-normal items-center leading-none px-3 text-gray-500 text-left text-sm whitespace-nowrap">
+                                </p>
+                            </td>
+                        </tr>"""
+
+        for old in old_ones:
+            htmlCode += f"""
+                <tr class="lg:border-b-0 form-row has_original dynamic-event_set" id="event_set-0">
+                    <td class="field-start_date p-3 lg:py-3 align-top border-b border-gray-200 flex items-center before:capitalize before:content-[attr(data-label)] before:mr-auto before:text-gray-500 before:w-72 lg:before:hidden font-normal px-3 text-left text-sm lg:table-cell dark:border-gray-800" data-label="date">
+                        <p class="bg-gray-50 border font-medium max-w-lg px-3 py-2 rounded-md shadow-sm text-gray-500 text-sm truncate whitespace-nowrap dark:border-gray-700 dark:text-gray-400 dark:bg-gray-800">
+                            {old.modified:%A %d %B %Y - %X}
+                        </p>
+                    </td>
+                    <td class="field-location p-3 lg:py-3 align-top border-b border-gray-200 flex items-center before:capitalize before:content-[attr(data-label)] before:mr-auto before:text-gray-500 before:w-72 lg:before:hidden font-normal px-3 text-left text-sm lg:table-cell dark:border-gray-800" data-label="value">
+                        <p class="bg-gray-50 border font-medium max-w-lg px-3 py-2 rounded-md shadow-sm text-gray-500 text-sm truncate whitespace-nowrap dark:border-gray-700 dark:text-gray-400 dark:bg-gray-800">
+                            {old.value}
+                        </p>
+                    </td>
+                </tr>
+            """
+
+        htmlCode += """</tbody></table></div>"""
+        return mark_safe(htmlCode)
+    list_old.custom_value = "Ehi"
 
 
 class CustomOutstandingTokenAdmin(OutstandingTokenAdmin):

@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Sum, Max
 from django.utils.functional import cached_property
 from django.utils.translation import gettext, gettext_lazy as _
 from django.utils import timezone
@@ -17,6 +17,7 @@ from django_extensions.db.models import TimeStampedModel
 from djmoney.models.fields import MoneyField
 
 logger = logging.getLogger("custom")
+
 
 # Create your models here.
 class User(TimeStampedModel, AbstractUser):
@@ -336,9 +337,26 @@ class Event(TimeStampedModel):
     )
 
     @cached_property
+    def get_valid_settings(self):
+        this_event_settings_ids = (Setting
+                                   .objects
+                                   .filter(created__lt=self.start_date)
+                                   .values("name")
+                                   .annotate(max_id=Max("id"))
+                                   .values_list("max_id", flat=True))
+
+        final_list = {}
+        for sett in this_event_settings_ids:
+            setting = Setting.objects.get(pk=sett)
+            final_list[setting.name] = setting.actual_value()
+
+        return final_list
+
+    @cached_property
     def consumption(self):
         props = settings.SM_SETTINGS["CONSUMPTIONS"]
-        cons = 5 * math.ceil(((decimal.Decimal(self.distance)/props["KM_PER_LITER"])*props["COST_PER_LITER"]*decimal.Decimal(1.1))/5)
+        cons = 5 * math.ceil(((decimal.Decimal(self.distance) / props["KM_PER_LITER"]) * props[
+            "COST_PER_LITER"] * decimal.Decimal(1.1)) / 5)
         return cons
 
     @cached_property
@@ -347,12 +365,13 @@ class Event(TimeStampedModel):
 
     def get_payment(self, properties):
         pay = 5 * round((self.payment.amount * max(
-                    properties["MIN"],
-                    min(
-                        decimal.Decimal(math.floor((self.payment.amount * properties["DECREMENT"] + properties["SHOT"])*250)/250),
-                        properties["MAX"]
-                    )
-                ))/5)
+            properties["MIN"],
+            min(
+                decimal.Decimal(
+                    math.floor((self.payment.amount * properties["DECREMENT"] + properties["SHOT"]) * 250) / 250),
+                properties["MAX"]
+            )
+        )) / 5)
         return pay
 
     @cached_property
@@ -526,4 +545,3 @@ class Setting(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name}"
-
