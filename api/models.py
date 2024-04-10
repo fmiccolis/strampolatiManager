@@ -1,11 +1,9 @@
-import decimal
+from decimal import Decimal
 import math
 from datetime import datetime, timedelta
 import logging
-import pytz
 
 from django import forms
-from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -354,9 +352,15 @@ class Event(TimeStampedModel):
 
     @cached_property
     def consumption(self):
-        props = settings.SM_SETTINGS["CONSUMPTIONS"]
-        cons = 5 * math.ceil(((decimal.Decimal(self.distance) / props["KM_PER_LITER"]) * props[
-            "COST_PER_LITER"] * decimal.Decimal(1.1)) / 5)
+        setts = self.get_valid_settings
+        km_per_liter = Decimal(setts.get("KM_PER_LITER", (100 / 7.5)))
+        cost_per_liter = Decimal(setts.get("COST_PER_LITER", 1.801))
+        cons = 5 * math.ceil(
+            (
+                (Decimal(self.distance) / km_per_liter) *
+                cost_per_liter * Decimal(1.1)
+            ) / 5
+        )
         return cons
 
     @cached_property
@@ -367,7 +371,7 @@ class Event(TimeStampedModel):
         pay = 5 * round((self.payment.amount * max(
             properties["MIN"],
             min(
-                decimal.Decimal(
+                Decimal(
                     math.floor((self.payment.amount * properties["DECREMENT"] + properties["SHOT"]) * 250) / 250),
                 properties["MAX"]
             )
@@ -379,7 +383,13 @@ class Event(TimeStampedModel):
         for agent in self.agents.all():
             group_names = list(agent.groups.values_list('name', flat=True))
             if "Member" in group_names:
-                return self.get_payment(settings.SM_SETTINGS["PAYMENTS"]["MEMBER"])
+                setts = self.get_valid_settings
+                return self.get_payment({
+                    "MIN": Decimal(setts.get("MIN_MEMBER_PAYMENT", 0.8)),
+                    "MAX": Decimal(setts.get("MAX_MEMBER_PAYMENT", 0.95)),
+                    "DECREMENT": Decimal(setts.get("DECREMENT_MEMBER_PAYMENT", (-5 / 3000))),
+                    "SHOT": Decimal(setts.get("SHOT_MEMBER_PAYMENT", (1 + 35 / 300)))
+                })
         return 0
 
     @cached_property
@@ -387,7 +397,13 @@ class Event(TimeStampedModel):
         for agent in self.agents.all():
             group_names = list(agent.groups.values_list('name', flat=True))
             if "Viewer" in group_names:
-                return self.get_payment(settings.SM_SETTINGS["PAYMENTS"]["VIEWER"])
+                setts = self.get_valid_settings
+                return self.get_payment({
+                    "MIN": Decimal(setts.get("MIN_VIEWER_PAYMENT", 0.7)),
+                    "MAX": Decimal(setts.get("MAX_VIEWER_PAYMENT", 0.85)),
+                    "DECREMENT": Decimal(setts.get("DECREMENT_VIEWER_PAYMENT", (-5 / 3000))),
+                    "SHOT": Decimal(setts.get("SHOT_VIEWER_PAYMENT", (1 + 5 / 300)))
+                })
         return 0
 
     @cached_property
@@ -419,7 +435,11 @@ class Event(TimeStampedModel):
 
     @cached_property
     def cash_fund(self):
-        return 0
+        setts = self.get_valid_settings
+        initial_cash_fund = Decimal(setts.get("STARTING_CASH_FUND", 0))
+        this_event_expenses = self.total_expenses
+        other_expenses = Expense.objects.filter(date__lte=self.start_date).exclude(event=self).aggregate(Sum('amount'))['amount__sum'] or 0
+        return initial_cash_fund + this_event_expenses +other_expenses
 
     class Meta:
         db_table = 'event'

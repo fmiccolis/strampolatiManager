@@ -1,15 +1,17 @@
 import datetime
 import decimal
 import math
-from typing import Any
+from decimal import Decimal
+from typing import Any, Optional, Dict
 import logging
 
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.db.models import Sum, Model, Max
-from django.forms import Form, ModelForm
+from django.forms import Form
 from django.http import HttpRequest
+from django.template.response import TemplateResponse
 from django.urls import reverse
 from django_celery_beat.models import PeriodicTask, IntervalSchedule, SolarSchedule, ClockedSchedule, CrontabSchedule
 from djmoney.money import Money
@@ -57,7 +59,7 @@ class ParticipationInline(TabularInline):
 class ExpenseInline(StackedInline):
     model = Expense
     max_num = 3
-    extra = 0
+    extra = 1
     formfield_overrides = {
         django_models.TextField: {
             "widget": WysiwygWidget,
@@ -68,7 +70,7 @@ class ExpenseInline(StackedInline):
 class NoteInline(StackedInline):
     model = Note
     max_num = 3
-    extra = 0
+    extra = 1
     formfield_overrides = {
         django_models.TextField: {
             "widget": WysiwygWidget,
@@ -118,15 +120,27 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
     event_total.short_description = "Totale eventi"
 
     def earnings(self, user: User):
+        all_setts = Setting.objects.all()
+        max_ids = all_setts.values('name').annotate(max_id=Max("id")).values_list("max_id", flat=True)
+        setts = dict((sett.name, sett.actual_value()) for sett in all_setts.filter(pk__in=max_ids))
         total_earnings = None
         events = Event.objects.filter(agents__email=user.email, paid__isnull=False)
-        p_settings = settings.SM_SETTINGS["PAYMENTS"]
         if events.exists():
             if user.groups.filter(name__exact="Member").exists():
-                sett = p_settings["MEMBER"]
+                sett = {
+                    "MIN": Decimal(setts.get("MIN_MEMBER_PAYMENT", 0.8)),
+                    "MAX": Decimal(setts.get("MAX_MEMBER_PAYMENT", 0.95)),
+                    "DECREMENT": Decimal(setts.get("DECREMENT_MEMBER_PAYMENT", (-5 / 3000))),
+                    "SHOT": Decimal(setts.get("SHOT_MEMBER_PAYMENT", (1 + 35 / 300)))
+                }
                 total_earnings = 0
             elif user.groups.filter(name__exact="Viewer").exists():
-                sett = p_settings["VIEWER"]
+                sett = {
+                    "MIN": Decimal(setts.get("MIN_VIEWER_PAYMENT", 0.7)),
+                    "MAX": Decimal(setts.get("MAX_VIEWER_PAYMENT", 0.85)),
+                    "DECREMENT": Decimal(setts.get("DECREMENT_VIEWER_PAYMENT", (-5 / 3000))),
+                    "SHOT": Decimal(setts.get("SHOT_VIEWER_PAYMENT", (1 + 5 / 300)))
+                }
                 total_earnings = 0
             else:
                 return ""
@@ -135,7 +149,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
                 total_earnings += 5 * round((evt.payment.amount * max(
                     sett["MIN"],
                     min(
-                        decimal.Decimal(math.floor((evt.payment.amount * sett["DECREMENT"] + sett["SHOT"])*250)/250),
+                        Decimal(math.floor((evt.payment.amount * sett["DECREMENT"] + sett["SHOT"])*250)/250),
                         sett["MAX"]
                     )
                 ))/5)
@@ -403,9 +417,41 @@ class EventAdmin(ModelAdmin):
     ]
     list_filter_submit = True
     filter_horizontal = ('agents',)
-    list_display = ('display_header', 'distance', 'consumption', 'provider', 'payment', 'extra', 'busker', 'gross', 'list_agents', 'total_expenses', 'has_notes', 'status')
+    list_display = ('display_header', 'b_distance', 'b_consumption', 'provider', 'b_payment', 'b_extra', 'b_busker', 'b_gross', 'list_agents', 'b_total_expenses', 'b_cash_fund', 'has_notes', 'status')
     ordering = ('-start_date',)
     inlines = [ExpenseInline, NoteInline]
+
+    def b_distance(self, instance: Event):
+        return f"{instance.distance} km"
+    b_distance.short_description = _("Distance")
+
+    def b_consumption(self, instance: Event):
+        return Money(instance.consumption, "EUR") or "-"
+    b_consumption.short_description = _("Consumption")
+
+    def b_payment(self, instance: Event):
+        return Money(instance.payment.amount, "EUR") or "-"
+    b_payment.short_description = _("Payment")
+
+    def b_extra(self, instance: Event):
+        return Money(instance.extra.amount, "EUR") or "-"
+    b_extra.short_description = _("Extra")
+
+    def b_busker(self, instance: Event):
+        return Money(instance.busker.amount, "EUR") or "-"
+    b_busker.short_description = _("Busker")
+
+    def b_gross(self, instance: Event):
+        return Money(instance.gross, "EUR") or "-"
+    b_gross.short_description = _("Gross")
+
+    def b_total_expenses(self, instance: Event):
+        return Money(instance.total_expenses, "EUR") or "-"
+    b_total_expenses.short_description = _("Total expenses")
+
+    def b_cash_fund(self, instance: Event):
+        return Money(instance.cash_fund, "EUR") or "-"
+    b_cash_fund.short_description = _("Cash fund")
 
     def list_agents(self, event: Event):
         links = []
@@ -414,7 +460,7 @@ class EventAdmin(ModelAdmin):
             for agent in agents.all():
                 links.append(f"<a href='{reverse("admin:api_user_change", kwargs={'object_id': agent.pk})}'>{agent.first_name}</a>")
         return mark_safe(", ".join(links))
-    list_agents.short_description = "Agenti"
+    list_agents.short_description = _("Agents")
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == "agents":
@@ -440,7 +486,7 @@ class EventAdmin(ModelAdmin):
         return current_status
     status.short_description = "Stato"
 
-    @display(description=_("Driver"), header=True)
+    @display(description=_(""), header=True)
     def display_header(self, instance: Event):
         return [instance.start_date, f"{instance.type} | {instance.location}"]
 
@@ -501,9 +547,15 @@ class SettingAdmin(ModelAdmin):
 
         super().save_model(request, obj, form, change)
 
+    def changelist_view(
+        self, request: HttpRequest, extra_context: Optional[Dict[str, str]] = None
+    ) -> TemplateResponse:
+        # my_extra = {'strampolati': ["Questo testo è tutto custom babba bia"]}
+        return super().changelist_view(request, extra_context=extra_context)
+
     def list_old(self, instance: Setting):
         old_ones = Setting.objects.filter(name=instance.name).exclude(id=instance.id).order_by('-modified')
-        htmlCode = f"""
+        html_code = """
             <div>
                 <table class="border border-gray-200 border-spacing-none border-separate mb-6 rounded-md shadow-sm text-gray-700 w-full dark:border-gray-800">
                     <thead class="hidden lg:table-header-group">
@@ -530,7 +582,7 @@ class SettingAdmin(ModelAdmin):
                         </tr>"""
 
         for old in old_ones:
-            htmlCode += f"""
+            html_code += f"""
                 <tr class="lg:border-b-0 form-row has_original dynamic-event_set" id="event_set-0">
                     <td class="field-start_date p-3 lg:py-3 align-top border-b border-gray-200 flex items-center before:capitalize before:content-[attr(data-label)] before:mr-auto before:text-gray-500 before:w-72 lg:before:hidden font-normal px-3 text-left text-sm lg:table-cell dark:border-gray-800" data-label="date">
                         <p class="bg-gray-50 border font-medium max-w-lg px-3 py-2 rounded-md shadow-sm text-gray-500 text-sm truncate whitespace-nowrap dark:border-gray-700 dark:text-gray-400 dark:bg-gray-800">
@@ -545,9 +597,8 @@ class SettingAdmin(ModelAdmin):
                 </tr>
             """
 
-        htmlCode += """</tbody></table></div>"""
-        return mark_safe(htmlCode)
-    list_old.custom_value = "Ehi"
+        html_code += """</tbody></table></div>"""
+        return mark_safe(html_code)
 
 
 class CustomOutstandingTokenAdmin(OutstandingTokenAdmin):

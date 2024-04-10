@@ -318,30 +318,6 @@ LOGIN_REDIRECT_URL = reverse_lazy("admin:index")
 
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-SM_SETTINGS = {
-    "PAYMENTS": {
-        "MEMBER": {
-            "MIN": decimal.Decimal(0.8),
-            "DECREMENT": decimal.Decimal(-5 / 3000),
-            "SHOT": decimal.Decimal(1 + 35 / 300),
-            "MAX": decimal.Decimal(0.95),
-        },
-        "VIEWER": {
-            "MIN": decimal.Decimal(0.7),
-            "DECREMENT": decimal.Decimal(-5 / 3000),
-            "SHOT": decimal.Decimal(1 + 5 / 300),
-            "MAX": decimal.Decimal(0.85),
-        },
-    },
-    "CONSUMPTIONS": {
-        "KM_PER_LITER": decimal.Decimal(100 / 7.5),
-        "COST_PER_LITER": decimal.Decimal(1.801),
-    },
-    "EVALUATIONS": {
-        "YEARS": 5
-    }
-}
-
 UNFOLD = {
     "SITE_HEADER": _("Strampolati Manager"),
     "SITE_TITLE": _("Strampolati Manager"),
