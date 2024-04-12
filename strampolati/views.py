@@ -2,9 +2,10 @@ import datetime
 import json
 import random
 import logging
+from collections import OrderedDict
 
-from django.db.models import Count, Sum
-from django.db.models.functions.datetime import ExtractMonth, ExtractYear, ExtractDay
+from django.db.models import Count, Sum, F, ExpressionWrapper, FloatField, Min
+from django.db.models.functions.datetime import ExtractMonth, ExtractYear, ExtractDay, TruncDate
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import RedirectView
@@ -36,12 +37,35 @@ def dashboard_callback(request, context):
     - FONDO CASSA
     """
 
-    events = Event.objects.all().order_by()
-
-    # logger.info(qs)
+    start = Event.objects.earliest('start_date').start_date
+    end = Event.objects.latest('start_date').start_date
+    now = timezone.now()
+    keys = OrderedDict(((start + datetime.timedelta(ccc)).strftime(r"%m-%Y"), None) for ccc in range((end - start).days)).keys()
 
     events_context = {}
-    now = timezone.now()
+    for comb in keys:
+        [month, year] = comb.split("-")
+        events_in_comb = Event.objects.filter(start_date__month=month, start_date__year=year)
+        if events_in_comb.exists():
+            paid_events = events_in_comb.exclude(paid=None)
+            before_today = events_in_comb.filter(start_date__lte=now)
+            after_today = events_in_comb.filter(start_date__gt=now)
+
+
+
+
+            count = events_in_comb.count()
+            dones = events_in_comb.filter(start_date__lte=now).count()
+            to_dos = count - dones
+            money_make = sum([raw["g"] for raw in events_in_comb.annotate(g=(F('payment') * Count('agents')) + F('busker') + F('extra')).values('g')])
+
+            logger.info(count)
+            logger.info(dones)
+            logger.info(to_dos)
+            logger.info(money_make)
+
+    events = Event.objects.all().order_by()
+
     for event in events:
         year = f"{event.start_date:%Y}"
         month = f"{event.start_date:%m}"
@@ -83,17 +107,27 @@ def dashboard_callback(request, context):
         this_year_context["gross"] += gross
         this_year_context["expense"] += expense
 
-        # calcolo il giorno migliore per il mese
-        max_payment_day = Event.objects.annotate(
-            day=ExtractDay('start_date')
-        ).values('day').annotate(
-            total_payment=Sum('payment')
-        ).order_by('-total_payment').first()
-        logger.info(max_payment_day)
+    # calcolo il giorno migliore per il mese
+    max_payment_day = (Event.objects
+    .annotate(
+        d=TruncDate('start_date')
+    )
+    .values('d')
+    .annotate(
+        g=(F('payment') * Count('agents')) + F('busker') + F('extra')
+    ))
+    uniques = {}
+    for comb in max_payment_day:
+        dt = comb.get("d")
+        gr = comb.get("g")
+        if uniques.get(dt, None) is None:
+            uniques[dt] = 0
 
+        uniques[dt] += gr
 
+    logger.info(uniques)
 
-    logger.info(events_context)
+    logger.info("___________________")
 
     WEEKDAYS = [
         "Mon",

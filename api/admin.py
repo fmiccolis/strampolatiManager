@@ -179,12 +179,12 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
 
 class LocationAdmin(ModelAdmin):
     fieldsets = [
-        (None, {'fields': [('city', 'name')]}),
+        (None, {'fields': [('province', 'city', 'name')]}),
         (_('Coordinates'), {'fields': (('latitude', 'longitude'), 'show_map')})
     ]
-    list_display = ('city', 'name', 'go_on_maps')
-    list_filter = ('city', 'name')
-    ordering = ('city','name')
+    list_display = ('province', 'city', 'name', 'go_on_maps')
+    list_filter = ('province', 'city', 'name')
+    ordering = ('province', 'city', 'name')
     readonly_fields = ('show_map',)
     inlines = [EventsInline]
 
