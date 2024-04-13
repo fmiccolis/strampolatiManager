@@ -460,7 +460,7 @@ class Event(TimeStampedModel):
     def get_valid_settings(self):
         this_event_settings_ids = (Setting
                                    .objects
-                                   .filter(created__lt=self.start_date)
+                                   .filter(valid_from__lt=self.start_date)
                                    .values("name")
                                    .annotate(max_id=Max("id"))
                                    .values_list("max_id", flat=True))
@@ -559,10 +559,14 @@ class Event(TimeStampedModel):
     def cash_fund(self):
         setts = self.get_valid_settings
         initial_cash_fund = Decimal(setts.get("STARTING_CASH_FUND", 0))
-        this_event_expenses = self.total_expenses
-        other_expenses = Expense.objects.filter(date__lte=self.start_date).exclude(event=self).aggregate(Sum('amount'))[
-                             'amount__sum'] or 0
-        return initial_cash_fund + this_event_expenses + other_expenses
+        previous_events = Event.objects.filter(start_date__lte=self.start_date).exclude(pk=self.pk)
+        previous_events_net = sum([p_evt.net for p_evt in previous_events])
+        all_other_expenses = Expense.objects.filter(event__isnull=True, date__lte=self.start_date).aggregate(Sum('amount'))['amount__sum'] or 0
+        logger.info(initial_cash_fund)
+        logger.info(self.net)
+        logger.info(previous_events_net)
+        logger.info(all_other_expenses)
+        return initial_cash_fund + self.net + previous_events_net - all_other_expenses
 
     class Meta:
         db_table = 'event'
@@ -657,6 +661,11 @@ class Setting(TimeStampedModel):
         verbose_name=_('value'),
         help_text=_('The value of the setting. This value is stored as a string for compliance purpose'),
         max_length=500
+    )
+    valid_from = models.DateTimeField(
+        verbose_name=_('valid from'),
+        default=timezone.now,
+        help_text=_('From which day it starts to be valid')
     )
     value_type = models.CharField(
         verbose_name=_('Type'),

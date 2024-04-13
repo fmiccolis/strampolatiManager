@@ -417,7 +417,7 @@ class EventAdmin(ModelAdmin):
     ]
     list_filter_submit = True
     filter_horizontal = ('agents',)
-    list_display = ('display_header', 'b_distance', 'b_consumption', 'provider', 'b_payment', 'b_extra', 'b_busker', 'b_gross', 'list_agents', 'b_total_expenses', 'b_cash_fund', 'has_notes', 'status')
+    list_display = ('display_header', 'b_distance', 'b_consumption', 'provider', 'b_payment', 'b_extra', 'b_busker', 'b_gross', 'list_agents', 'b_total_expenses', 'b_net', 'b_cash_fund', 'has_notes', 'status')
     ordering = ('-start_date',)
     inlines = [ExpenseInline, NoteInline]
 
@@ -448,6 +448,10 @@ class EventAdmin(ModelAdmin):
     def b_total_expenses(self, instance: Event):
         return Money(instance.total_expenses, "EUR") or "-"
     b_total_expenses.short_description = _("Total expenses")
+
+    def b_net(self, instance: Event):
+        return Money(instance.net, "EUR") or "-"
+    b_net.short_description = _("Total expenses")
 
     def b_cash_fund(self, instance: Event):
         return Money(instance.cash_fund, "EUR") or "-"
@@ -502,7 +506,7 @@ class SettingAdmin(ModelAdmin):
         (_("Current"), {
             'classes': ["tab"],
             'fields': [
-                ('name', 'value_type'), 'value', 'description'
+                ('name', 'value_type'), 'valid_from', 'value', 'description'
             ],
         }),
         (_("Old"), {
@@ -519,9 +523,9 @@ class SettingAdmin(ModelAdmin):
         }
     }
     readonly_fields = ('list_old',)
-    list_display = ('name', 'modified', 'value')
+    list_display = ('name', 'valid_from', 'value')
     ordering = ('name',)
-    edit_exclude = ('name', 'value_type')
+    edit_exclude = ('name', 'value_type', 'valid_from')
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
@@ -584,9 +588,9 @@ class SettingAdmin(ModelAdmin):
         for old in old_ones:
             html_code += f"""
                 <tr class="lg:border-b-0 form-row has_original dynamic-event_set" id="event_set-0">
-                    <td class="field-start_date p-3 lg:py-3 align-top border-b border-gray-200 flex items-center before:capitalize before:content-[attr(data-label)] before:mr-auto before:text-gray-500 before:w-72 lg:before:hidden font-normal px-3 text-left text-sm lg:table-cell dark:border-gray-800" data-label="date">
+                    <td class="field-start_date p-3 lg:py-3 align-top border-b border-gray-200 flex items-center before:capitalize before:content-[attr(data-label)] before:mr-auto before:text-gray-500 before:w-72 lg:before:hidden font-normal px-3 text-left text-sm lg:table-cell dark:border-gray-800" data-label="valid from">
                         <p class="bg-gray-50 border font-medium max-w-lg px-3 py-2 rounded-md shadow-sm text-gray-500 text-sm truncate whitespace-nowrap dark:border-gray-700 dark:text-gray-400 dark:bg-gray-800">
-                            {old.modified:%A %d %B %Y - %X}
+                            {old.valid_from:%A %d %B %Y - %X}
                         </p>
                     </td>
                     <td class="field-location p-3 lg:py-3 align-top border-b border-gray-200 flex items-center before:capitalize before:content-[attr(data-label)] before:mr-auto before:text-gray-500 before:w-72 lg:before:hidden font-normal px-3 text-left text-sm lg:table-cell dark:border-gray-800" data-label="value">
