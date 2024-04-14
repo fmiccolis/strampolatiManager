@@ -1,5 +1,4 @@
 import datetime
-import decimal
 import math
 from decimal import Decimal
 from typing import Any, Optional, Dict
@@ -58,8 +57,7 @@ class ParticipationInline(TabularInline):
 
 class ExpenseInline(StackedInline):
     model = Expense
-    max_num = 3
-    extra = 1
+    extra = 0
     formfield_overrides = {
         django_models.TextField: {
             "widget": WysiwygWidget,
@@ -69,8 +67,7 @@ class ExpenseInline(StackedInline):
 
 class NoteInline(StackedInline):
     model = Note
-    max_num = 3
-    extra = 1
+    extra = 0
     formfield_overrides = {
         django_models.TextField: {
             "widget": WysiwygWidget,
@@ -357,6 +354,14 @@ class NoteAdmin(ModelAdmin):
         return mark_safe(instance.content)
     beauty_content.short_description = "Content"
 
+    def save_model(
+        self, request: HttpRequest, obj: Note, form: Form, change: Any
+    ) -> None:
+        if obj.event is not None:
+            obj.date = obj.event.start_date
+
+        super().save_model(request, obj, form, change)
+
 
 class ExpenseAdmin(ModelAdmin):
     formfield_overrides = {
@@ -374,6 +379,14 @@ class ExpenseAdmin(ModelAdmin):
     def beauty_content(self, instance: Expense):
         return mark_safe(instance.description)
     beauty_content.short_description = "Description"
+
+    def save_model(
+        self, request: HttpRequest, obj: Expense, form: Form, change: Any
+    ) -> None:
+        if obj.event is not None:
+            obj.date = obj.event.start_date
+
+        super().save_model(request, obj, form, change)
 
 
 class ProviderAdmin(ModelAdmin):
@@ -417,7 +430,7 @@ class EventAdmin(ModelAdmin):
     ]
     list_filter_submit = True
     filter_horizontal = ('agents',)
-    list_display = ('display_header', 'b_distance', 'b_consumption', 'provider', 'b_payment', 'b_extra', 'b_busker', 'b_gross', 'list_agents', 'b_total_expenses', 'b_net', 'b_cash_fund', 'has_notes', 'status')
+    list_display = ('display_header', 'hours_worked', 'b_payment_per_hour', 'b_gross_per_hour', 'b_distance', 'b_consumption', 'provider', 'b_payment', 'b_extra', 'b_busker', 'b_gross', 'list_agents', 'b_total_expenses', 'b_net', 'b_cash_fund', 'has_notes', 'status')
     ordering = ('-start_date',)
     inlines = [ExpenseInline, NoteInline]
 
@@ -456,6 +469,14 @@ class EventAdmin(ModelAdmin):
     def b_cash_fund(self, instance: Event):
         return Money(instance.cash_fund, "EUR") or "-"
     b_cash_fund.short_description = _("Cash fund")
+
+    def b_payment_per_hour(self, instance: Event):
+        return Money(instance.payment_per_hour, "EUR") or "-"
+    b_payment_per_hour.short_description = _("Payment per hour")
+
+    def b_gross_per_hour(self, instance: Event):
+        return Money(instance.gross_per_hour, "EUR") or "-"
+    b_gross_per_hour.short_description = _("Payment per hour")
 
     def list_agents(self, event: Event):
         links = []
@@ -543,7 +564,7 @@ class SettingAdmin(ModelAdmin):
         return qs.filter(pk__in=max_ids)
 
     def save_model(
-        self, request: HttpRequest, obj: Model, form: Form, change: Any
+        self, request: HttpRequest, obj: Setting, form: Form, change: Any
     ) -> None:
         if obj.pk is not None:
             old = Setting.objects.get(pk=obj.pk)

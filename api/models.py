@@ -562,11 +562,19 @@ class Event(TimeStampedModel):
         previous_events = Event.objects.filter(start_date__lte=self.start_date).exclude(pk=self.pk)
         previous_events_net = sum([p_evt.net for p_evt in previous_events])
         all_other_expenses = Expense.objects.filter(event__isnull=True, date__lte=self.start_date).aggregate(Sum('amount'))['amount__sum'] or 0
-        logger.info(initial_cash_fund)
-        logger.info(self.net)
-        logger.info(previous_events_net)
-        logger.info(all_other_expenses)
         return initial_cash_fund + self.net + previous_events_net - all_other_expenses
+
+    @cached_property
+    def hours_worked(self) -> timedelta:
+        return self.end_date - self.start_date
+
+    @cached_property
+    def payment_per_hour(self):
+        return self.payment.amount/Decimal(self.hours_worked.total_seconds()/60/60)
+
+    @cached_property
+    def gross_per_hour(self):
+        return self.gross/Decimal(self.hours_worked.total_seconds()/60/60)
 
     class Meta:
         db_table = 'event'
@@ -584,7 +592,8 @@ class Event(TimeStampedModel):
 class Expense(TimeStampedModel):
     date = models.DateField(
         verbose_name=_('date'),
-        auto_now_add=True
+        default=timezone.now,
+        help_text=_("The date of the expense")
     )
     amount = MoneyField(
         max_digits=14, decimal_places=2, null=True, blank=True, default_currency="EUR", default=0
@@ -623,7 +632,7 @@ class Expense(TimeStampedModel):
 class Note(TimeStampedModel):
     date = models.DateField(
         verbose_name=_('date'),
-        auto_now_add=True
+        default=timezone.now
     )
     content = models.TextField(
         verbose_name=_('content'),
