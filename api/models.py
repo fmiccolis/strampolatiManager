@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import math
 from datetime import datetime, timedelta
 import logging
@@ -490,14 +490,18 @@ class Event(TimeStampedModel):
         return (self.agents.count() * self.payment.amount) + self.extra.amount + self.busker.amount
 
     def get_payment(self, properties):
-        pay = 5 * round((self.payment.amount * max(
-            properties["MIN"],
-            min(
-                Decimal(
-                    math.floor((self.payment.amount * properties["DECREMENT"] + properties["SHOT"]) * 250) / 250),
-                properties["MAX"]
+        if self.provider is None:
+            return self.payment
+        pay = 5 * Decimal((
+            float(self.payment.amount) *
+            max(
+                properties["MIN"],
+                min(
+                    math.floor((float(self.payment.amount)*properties["DECREMENT"]+properties["SHOT"])*250)/250,
+                    properties["MAX"]
+                )
             )
-        )) / 5)
+        ) / 5).quantize(0, ROUND_HALF_UP)
         return pay
 
     @cached_property
@@ -507,10 +511,10 @@ class Event(TimeStampedModel):
             if "Member" in group_names:
                 setts = self.get_valid_settings
                 return self.get_payment({
-                    "MIN": Decimal(setts.get("MIN_MEMBER_PAYMENT", 0.8)),
-                    "MAX": Decimal(setts.get("MAX_MEMBER_PAYMENT", 0.95)),
-                    "DECREMENT": Decimal(setts.get("DECREMENT_MEMBER_PAYMENT", (-5 / 3000))),
-                    "SHOT": Decimal(setts.get("SHOT_MEMBER_PAYMENT", (1 + 35 / 300)))
+                    "MIN": setts.get("MIN_MEMBER_PAYMENT", 0.8),
+                    "MAX": setts.get("MAX_MEMBER_PAYMENT", 0.95),
+                    "DECREMENT": setts.get("DECREMENT_MEMBER_PAYMENT", (-5 / 3000)),
+                    "SHOT": setts.get("SHOT_MEMBER_PAYMENT", (1 + 35 / 300))
                 })
         return 0
 
@@ -521,10 +525,10 @@ class Event(TimeStampedModel):
             if "Viewer" in group_names:
                 setts = self.get_valid_settings
                 return self.get_payment({
-                    "MIN": Decimal(setts.get("MIN_VIEWER_PAYMENT", 0.7)),
-                    "MAX": Decimal(setts.get("MAX_VIEWER_PAYMENT", 0.85)),
-                    "DECREMENT": Decimal(setts.get("DECREMENT_VIEWER_PAYMENT", (-5 / 3000))),
-                    "SHOT": Decimal(setts.get("SHOT_VIEWER_PAYMENT", (1 + 5 / 300)))
+                    "MIN": setts.get("MIN_VIEWER_PAYMENT", 0.7),
+                    "MAX": setts.get("MAX_VIEWER_PAYMENT", 0.85),
+                    "DECREMENT": setts.get("DECREMENT_VIEWER_PAYMENT", (-5 / 3000)),
+                    "SHOT": setts.get("SHOT_VIEWER_PAYMENT", (1 + 5 / 300))
                 })
         return 0
 

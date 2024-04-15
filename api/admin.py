@@ -117,39 +117,16 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
     event_total.short_description = "Totale eventi"
 
     def earnings(self, user: User):
-        all_setts = Setting.objects.all()
-        max_ids = all_setts.values('name').annotate(max_id=Max("id")).values_list("max_id", flat=True)
-        setts = dict((sett.name, sett.actual_value()) for sett in all_setts.filter(pk__in=max_ids))
-        total_earnings = None
+        total_earnings = 0
         events = Event.objects.filter(agents__email=user.email, paid__isnull=False)
         if events.exists():
-            if user.groups.filter(name__exact="Member").exists():
-                sett = {
-                    "MIN": Decimal(setts.get("MIN_MEMBER_PAYMENT", 0.8)),
-                    "MAX": Decimal(setts.get("MAX_MEMBER_PAYMENT", 0.95)),
-                    "DECREMENT": Decimal(setts.get("DECREMENT_MEMBER_PAYMENT", (-5 / 3000))),
-                    "SHOT": Decimal(setts.get("SHOT_MEMBER_PAYMENT", (1 + 35 / 300)))
-                }
-                total_earnings = 0
-            elif user.groups.filter(name__exact="Viewer").exists():
-                sett = {
-                    "MIN": Decimal(setts.get("MIN_VIEWER_PAYMENT", 0.7)),
-                    "MAX": Decimal(setts.get("MAX_VIEWER_PAYMENT", 0.85)),
-                    "DECREMENT": Decimal(setts.get("DECREMENT_VIEWER_PAYMENT", (-5 / 3000))),
-                    "SHOT": Decimal(setts.get("SHOT_VIEWER_PAYMENT", (1 + 5 / 300)))
-                }
-                total_earnings = 0
-            else:
-                return ""
-
             for evt in events:
-                total_earnings += 5 * round((evt.payment.amount * max(
-                    sett["MIN"],
-                    min(
-                        Decimal(math.floor((evt.payment.amount * sett["DECREMENT"] + sett["SHOT"])*250)/250),
-                        sett["MAX"]
-                    )
-                ))/5)
+                if user.groups.filter(name__exact="Member").exists():
+                    total_earnings += evt.member_payment
+                elif user.groups.filter(name__exact="Viewer").exists():
+                    total_earnings += evt.viewer_payment
+                else:
+                    total_earnings += 0
         return Money(total_earnings, "EUR") if total_earnings else ""
 
     earnings.short_description = "Guadagni"
