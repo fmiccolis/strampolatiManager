@@ -252,7 +252,7 @@ class ItemAdmin(ModelAdmin):
 class ContactAdmin(ModelAdmin):
     fieldsets = (
         (_('First Information'), {'fields': (('first_contact', 'full_name', 'phone'),)}),
-        (_('Event Information'), {'fields': (('event_date', 'confirm_date'), 'additional_info')}),
+        (_('Event Information'), {'fields': (('event_date', 'confirm_date', 'cancel_date'), 'additional_info')}),
     )
     list_display = ('full_name', 'phone', 'event_date', 'beauty_content', 'status')
     inlines = [EventsInline]
@@ -273,6 +273,7 @@ class ContactAdmin(ModelAdmin):
             "Perso": "danger",
             "Confermabile": "warning",
             "Confermato": "success",
+            "Annullato": "danger",
         }
     )
     def status(self, instance: Contact):
@@ -281,6 +282,8 @@ class ContactAdmin(ModelAdmin):
             current_status = "Confermabile"
         if instance.confirm_date is not None:
             current_status = "Confermato"
+        if instance.cancel_date is not None:
+            current_status = "Annullato"
         return current_status
     status.short_description = _("Status")
 

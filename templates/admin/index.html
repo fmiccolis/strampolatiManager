@@ -1,6 +1,7 @@
 {% extends 'admin/base.html' %}
 
 {% load i18n %}
+{% load djmoney %}
 
 {% block breadcrumbs %}{% endblock %}
 
@@ -16,10 +17,29 @@
 
 {% block content %}
     <div class="flex flex-col lg:flex-row lg:gap-8">
-        <div class="flex-grow">
-            {% include "unfold/helpers/app_list_default.html" %}
-        </div>
-
-        {% include "unfold/helpers/history.html" %}
+        <table>
+          <thead>
+            <tr>
+              {% for header in table_headers %}
+                <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+        <tbody>
+          {% for row in table_content %}
+            <tr>
+              <td>{{ row.key }}</td>
+              <td>{% money_localize row.gross 'EUR' %}</td>
+              <td>{% money_localize row.external_cost 'EUR' %}</td>
+              <td>{% money_localize row.added_value 'EUR' %}</td>
+              <td>{% money_localize row.paychecks 'EUR' %}</td>
+              <td>{% money_localize row.ebitda 'EUR' %}</td>
+              <td>{% money_localize row.ammor 'EUR' %}</td>
+              <td>{% money_localize row.ebit 'EUR' %}</td>
+              <td>{% money_localize row.cash_fund 'EUR' %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        </table>
     </div>
 {% endblock %}

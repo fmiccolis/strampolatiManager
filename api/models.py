@@ -253,7 +253,13 @@ class Contact(TimeStampedModel):
         verbose_name=_('confirm date'),
         null=True,
         blank=True,
-        help_text=_('If values represent the date the contact confirmed the event')
+        help_text=_('If valued represent the date the contact confirmed the event')
+    )
+    cancel_date = models.DateField(
+        verbose_name=_('cancel date'),
+        null=True,
+        blank=True,
+        help_text=_('If valued indicate that the event was canceled. In the additional info should be written why')
     )
     additional_info = models.TextField(
         verbose_name=_('additional information'),
