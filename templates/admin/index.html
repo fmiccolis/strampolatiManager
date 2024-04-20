@@ -1,7 +1,6 @@
-{% extends 'admin/base.html' %}
+{% extends 'unfold/layouts/base_simple.html' %}
 
-{% load i18n %}
-{% load djmoney %}
+{% load i18n djmoney unfold unfold_list %}
 
 {% block breadcrumbs %}{% endblock %}
 
@@ -16,18 +15,97 @@
 {% endblock %}
 
 {% block content %}
-    <div class="flex flex-col lg:flex-row lg:gap-8">
-        <table>
-          <thead>
+    {% component "unfold/components/container.html" %}
+        {% component "unfold/components/flex.html" with class="gap-4" %}
+            {% component "unfold/components/navigation.html" with items=navigation %}{% endcomponent %}
+
+            {% component "unfold/components/navigation.html" with class="ml-auto" items=filters %}{% endcomponent %}
+        {% endcomponent %}
+
+        {% component "unfold/components/flex.html" with class="gap-8 mb-8 flex-col lg:flex-row" %}
+            {% for stats in kpi %}
+                {% trans "Total" as label %}
+                {% component "unfold/components/card.html" with class="lg:w-1/4" label=label footer=stats.footer %}
+                    {% component "unfold/components/text.html" %}
+                        {{ stats.title }}
+                    {% endcomponent %}   
+
+                    {% component "unfold/components/title.html" %}
+                        {{ stats.metric }}
+                    {% endcomponent %}                                  
+                {% endcomponent %}
+            {% endfor %}
+        {% endcomponent %}
+        
+        {% trans "Earnings anda expenses in the last 36 months" as title %}
+        {% component "unfold/components/card.html" with class="mb-8" title=title %}
+            {% component "unfold/components/chart/bar.html" with data=chart height=320 %}{% endcomponent %}
+        {% endcomponent %}
+
+        {% component "unfold/components/flex.html" with class="gap-8 mb-8 flex-col lg:flex-row" %}
+            {% trans "The most trending products in last 2 weeks" as title %}
+            {% component "unfold/components/card.html" with class="lg:w-1/2" title=title %}
+                {% component "unfold/components/card.html" %}
+                    {% component "unfold/components/title.html" with class="mb-2" %}
+                        $1,234,567.89
+                    {% endcomponent %}
+                
+                    {% component "unfold/components/text.html" %}
+                        {% blocktrans %}
+                            Total revenue between <span class="font-medium text-gray-700 dark:text-white">1 - 31 October</span>. Increase <span class="text-green-600 font-medium">+3.14%</span> comparing to previous month <span class="font-medium text-gray-700 dark:text-white">1 - 30 September</span>. <a href="#" class="text-primary-500 underline">View detailed analytics.</a>
+                        {% endblocktrans %}
+                    {% endcomponent %}                
+                {% endcomponent %}
+                {% component "unfold/components/separator.html" %}{% endcomponent %}
+                
+                {% component "unfold/components/flex.html" with col=1 class="gap-8" %}
+                    {% for metric in progress %}
+                        {% component "unfold/components/progress.html" with title=metric.title description=metric.description value=metric.value %}{% endcomponent %}
+                    {% endfor %}
+                {% endcomponent %}
+            {% endcomponent %}    
+
+            {% component "unfold/components/flex.html" with class="gap-8 lg:w-1/2" col=1 %}
+                {% for stats in performance %}
+                    {% component "unfold/components/card.html" %}
+                        {% component "unfold/components/text.html" %}
+                            {{ stats.title }}
+                        {% endcomponent %}   
+
+                        {% component "unfold/components/title.html" with class="mb-8" %}
+                            {{ stats.metric }}
+                        {% endcomponent %}                                  
+
+                        {% component "unfold/components/chart/line.html" with data=stats.chart %}{% endcomponent %}
+                    {% endcomponent %}
+                {% endfor %}
+            {% endcomponent %}        
+        {% endcomponent %}    
+    {% endcomponent %}
+  <div class="flex flex-row lg:flex-row flex-wrap lg:gap-8">
+      <div class="w-full">
+        <span class="text text-3xl">Resoconto</span>
+      </div>
+      <div class="w-full">
+        <table class="border-gray-200 border-spacing-none border-separate text-gray-700 w-full dark:text-gray-400 lg:border lg:rounded-md lg:shadow-sm lg:dark:border-gray-800">
+          <thead class="hidden lg:table-header-group">
             <tr>
+              <th class="align-middle font-medium px-3 py-2 text-left text-gray-400 text-sm" scope="col"></th>
               {% for header in table_headers %}
-                <th>{{ header }}</th>
+                <th class="align-middle font-medium px-3 py-2 text-left text-gray-400 text-sm" scope="col">
+                  <div class="flex items-center">
+                    <div class="text">
+                      <span>{{ header|capfirst }}</span>
+                    </div>
+                  </div>
+                </th>
               {% endfor %}
             </tr>
           </thead>
         <tbody>
           {% for row in table_content %}
-            <tr>
+            <tr class="{% cycle '' 'bg-gray-50 dark:bg-white/[.02]' %} block border mb-3 rounded-md shadow-sm lg:table-row lg:border-none lg:mb-0 lg:shadow-none dark:border-gray-800" style="display: {{ row.display }}">
+              <td>&darr;</td>
               <td>{{ row.key }}</td>
               <td>{% money_localize row.gross 'EUR' %}</td>
               <td>{% money_localize row.external_cost 'EUR' %}</td>
@@ -41,5 +119,6 @@
           {% endfor %}
         </tbody>
         </table>
+      </div>
     </div>
 {% endblock %}
