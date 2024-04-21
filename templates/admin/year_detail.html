@@ -63,9 +63,7 @@
           {% for row in table_content %}
             <tr class="{% cycle '' 'bg-gray-50 dark:bg-white/[.02]' %} block border mb-3 rounded-md shadow-sm lg:table-row lg:border-none lg:mb-0 lg:shadow-none dark:border-gray-800" style="display: {{ row.display }}">
               <td>&darr;</td>
-              <td>
-                <a href="{% url 'year_detail' year=row.key.strip %}">{{ row.key }}</a>
-              </td>
+              <td>{{ row.key }}</td>
               <td>{% money_localize row.gross 'EUR' %}</td>
               <td>{% money_localize row.external_cost 'EUR' %}</td>
               <td>{% money_localize row.added_value 'EUR' %}</td>

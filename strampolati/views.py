@@ -8,6 +8,7 @@ from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from django.db.models import Count, Sum, F, ExpressionWrapper, FloatField, Min
 from django.db.models.functions.datetime import ExtractMonth, ExtractYear, ExtractDay, TruncDate
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import RedirectView
@@ -52,13 +53,15 @@ def dashboard_callback(request, context):
     start = Event.objects.earliest('start_date').start_date
     now = timezone.now()
 
-    combinations = getLastXMonths(now, 36)
+    combinations = getLastXMonths(now, 24)
     positive = list()
     negative = list()
     average_percentage = list()
     average = list()
     max_gross = 0
+    labels = list()
     for [month, year] in combinations:
+        labels.append(datetime.date(year, month, 1).strftime("%B %Y"))
         events_in_comb = Event.objects.filter(start_date__month=month, start_date__year=year)
         expenses_in_comb = Expense.objects.filter(date__month=month, date__year=year)
         gross = 0
@@ -72,6 +75,7 @@ def dashboard_callback(request, context):
         negative.append(-expenses)
         average_percentage.append((1-(expenses/gross))*100 if gross != 0 else 0)
 
+    logger.info(labels)
     for perc in average_percentage:
         average.append((perc*max_gross)/100)
 
@@ -156,14 +160,14 @@ def dashboard_callback(request, context):
         {
             "navigation": [
                 {"title": _("Dashboard"), "link": "/", "active": True},
-                {"title": _("Analytics"), "link": "#"},
-                {"title": _("Settings"), "link": "#"},
+                {"title": _("Metrics"), "link": "#"},
+                {"title": _("Settings"), "link": reverse("admin:api_setting_changelist")},
             ],
             "filters": [
                 {"title": _("All"), "link": "#", "active": True},
                 {
                     "title": _("New"),
-                    "link": "#",
+                    "link": reverse("admin:api_event_add"),
                 },
             ],
             "kpi": [
@@ -223,30 +227,33 @@ def dashboard_callback(request, context):
                     "value": random.randint(10, 90),
                 },
             ],
-            "chart": json.dumps(
-                {
-                    "labels": [WEEKDAYS[day % 7] for day in range(1, 36)],
+            "chart": {
+                "settings": {
+                    "title": _(f"Earnings and expenses in the last {len(positive)} months")
+                },
+                "data": json.dumps({
+                    "labels": labels,
                     "datasets": [
                         {
-                            "label": "Example 1",
+                            "label": "Percentuale valore aggiunto",
                             "type": "line",
                             "data": average,
                             "backgroundColor": "#f0abfc",
                             "borderColor": "#f0abfc",
                         },
                         {
-                            "label": "Example 2",
+                            "label": "Entrate",
                             "data": positive,
                             "backgroundColor": "#9333ea",
                         },
                         {
-                            "label": "Example 3",
+                            "label": "Uscite",
                             "data": negative,
                             "backgroundColor": "#f43f5e",
                         },
                     ],
-                }
-            ),
+                })
+            },
             "performance": [
                 {
                     "title": _("Last week revenue"),

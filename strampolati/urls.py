@@ -16,8 +16,8 @@ Including another URLconf
 """
 from allauth.account.views import password_reset_from_key
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
+from django.conf.urls.static import static
 from django.urls import path, include, re_path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
@@ -25,6 +25,7 @@ from strampolati.views import HomeView
 
 urlpatterns = [
     path('', HomeView.as_view()),
+    path('manager/', include("api.urls")),
     path('manager/', admin.site.urls),
     path("__debug__/", include("debug_toolbar.urls")),
     path('log_viewer/', include('log_viewer.urls', namespace='logs')),
@@ -38,7 +39,6 @@ urlpatterns = [
     path('auth/', include('dj_rest_auth.urls')),
     path('auth/registration/', include('dj_rest_auth.registration.urls')),
     path('accounts/', include('allauth.urls')),
-    path('api/v1/', include('api.urls')),
 ]
 
 handler404 = 'frontend.views.view404'
