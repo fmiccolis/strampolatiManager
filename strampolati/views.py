@@ -15,7 +15,7 @@ from django.views.generic import RedirectView
 from django.utils import timezone
 from djmoney.money import Money
 
-from api.models import Event, Expense
+from api.models import Event, Expense, User
 
 logger = logging.getLogger("custom")
 
@@ -156,6 +156,21 @@ def dashboard_callback(request, context):
     performance_positive = [[1, random.randrange(8, 28)] for i in range(1, 28)]
     performance_negative = [[-1, -random.randrange(8, 28)] for i in range(1, 28)]
 
+    progress = list()
+    max_num = 0
+    for agent in User.objects.all():
+        if agent.groups.count() > 0:
+            events_count = Event.objects.filter(agents__in=[agent]).count() or 0
+            max_num = max(max_num, events_count)
+            progress.append({
+                "title": agent.nominativo(),
+                "description": f"{events_count}",
+                "value": events_count
+            })
+    for pro in progress:
+        raw_value = pro["value"]
+        pro["value"] = round((100*raw_value)/max_num)
+
     context.update(
         {
             "navigation": [
@@ -200,33 +215,7 @@ def dashboard_callback(request, context):
                     ),
                 },
             ],
-            "progress": [
-                {
-                    "title": "Social marketing e-book",
-                    "description": " $1,234.56",
-                    "value": random.randint(10, 90),
-                },
-                {
-                    "title": "Freelancing tasks",
-                    "description": " $1,234.56",
-                    "value": random.randint(10, 90),
-                },
-                {
-                    "title": "Development coaching",
-                    "description": " $1,234.56",
-                    "value": random.randint(10, 90),
-                },
-                {
-                    "title": "Product consulting",
-                    "description": " $1,234.56",
-                    "value": random.randint(10, 90),
-                },
-                {
-                    "title": "Other income",
-                    "description": " $1,234.56",
-                    "value": random.randint(10, 90),
-                },
-            ],
+            "progress": progress,
             "chart": {
                 "settings": {
                     "title": _(f"Earnings and expenses in the last {len(positive)} months")
