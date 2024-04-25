@@ -44,59 +44,44 @@
         {% trans "Report" as title %}
         {% component "unfold/components/card.html" with class="mb-8" title=title %}
             <div class="w-full">
-        <table class="border-gray-200 border-spacing-none border-separate text-gray-700 w-full dark:text-gray-400 lg:border lg:rounded-md lg:shadow-sm lg:dark:border-gray-800">
-          <thead class="hidden lg:table-header-group">
-            <tr>
-              <th class="align-middle font-medium px-3 py-2 text-left text-gray-400 text-sm" scope="col"></th>
-              {% for header in table_headers %}
-                <th class="align-middle font-medium px-3 py-2 text-left text-gray-400 text-sm" scope="col">
-                  <div class="flex items-center">
-                    <div class="text">
-                      <span>{{ header|capfirst }}</span>
-                    </div>
-                  </div>
-                </th>
-              {% endfor %}
-            </tr>
-          </thead>
-        <tbody>
-          {% for row in table_content %}
-            <tr class="{% cycle '' 'bg-gray-50 dark:bg-white/[.02]' %} block border mb-3 rounded-md shadow-sm lg:table-row lg:border-none lg:mb-0 lg:shadow-none dark:border-gray-800" style="display: {{ row.display }}">
-              <td>&darr;</td>
-              <td>
-                <a href="{% url 'year_detail' year=row.key.strip %}">{{ row.key }}</a>
-              </td>
-              <td>{% money_localize row.gross 'EUR' %}</td>
-              <td>{% money_localize row.external_cost 'EUR' %}</td>
-              <td>{% money_localize row.added_value 'EUR' %}</td>
-              <td>{% money_localize row.paychecks 'EUR' %}</td>
-              <td>{% money_localize row.ebitda 'EUR' %}</td>
-              <td>{% money_localize row.ammor 'EUR' %}</td>
-              <td>{% money_localize row.ebit 'EUR' %}</td>
-              <td>{% money_localize row.cash_fund 'EUR' %}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-        </table>
-      </div>
+                <table class="border-gray-200 border-spacing-none border-separate text-gray-700 w-full dark:text-gray-400 lg:border lg:rounded-md lg:shadow-sm lg:dark:border-gray-800">
+                  <thead class="hidden lg:table-header-group">
+                    <tr>
+                      {% for header in table_headers %}
+                        <th class="align-middle font-medium px-3 py-2 text-left text-gray-400 text-sm" scope="col">
+                          <div class="flex items-center">
+                            <div class="text">
+                              <span>{{ header|capfirst }}</span>
+                            </div>
+                          </div>
+                        </th>
+                      {% endfor %}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in table_content %}
+                      <tr class="{% cycle '' 'bg-gray-50 dark:bg-white/[.02]' %} block border mb-3 rounded-md shadow-sm lg:table-row lg:border-none lg:mb-0 lg:shadow-none dark:border-gray-800">
+                        <td>
+                          <a href="{% url 'admin:index' %}{{ row.link }}">{{ row.key }}</a>
+                        </td>
+                        <td>{% money_localize row.gross 'EUR' %}</td>
+                        <td>{% money_localize row.external_cost 'EUR' %}</td>
+                        <td>{% money_localize row.added_value 'EUR' %}</td>
+                        <td>{% money_localize row.paychecks 'EUR' %}</td>
+                        <td>{% money_localize row.ebitda 'EUR' %}</td>
+                        <td>{% money_localize row.ammor 'EUR' %}</td>
+                        <td>{% money_localize row.ebit 'EUR' %}</td>
+                        <td>{% money_localize row.cash_fund 'EUR' %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
         {% endcomponent %}
 
         {% component "unfold/components/flex.html" with class="gap-8 mb-8 flex-col lg:flex-row" %}
-            {% trans "The most trending products in last 2 weeks" as title %}
-            {% component "unfold/components/card.html" with class="lg:w-1/2" title=title %}
-                {% component "unfold/components/card.html" %}
-                    {% component "unfold/components/title.html" with class="mb-2" %}
-                        $1,234,567.89
-                    {% endcomponent %}
-                
-                    {% component "unfold/components/text.html" %}
-                        {% blocktrans %}
-                            Total revenue between <span class="font-medium text-gray-700 dark:text-white">1 - 31 October</span>. Increase <span class="text-green-600 font-medium">+3.14%</span> comparing to previous month <span class="font-medium text-gray-700 dark:text-white">1 - 30 September</span>. <a href="#" class="text-primary-500 underline">View detailed analytics.</a>
-                        {% endblocktrans %}
-                    {% endcomponent %}                
-                {% endcomponent %}
-                {% component "unfold/components/separator.html" %}{% endcomponent %}
-                
+            {% trans "Number of events per agent" as title %}
+            {% component "unfold/components/card.html" with class="lg:w-1/2" title=title %}                
                 {% component "unfold/components/flex.html" with col=1 class="gap-8" %}
                     {% for metric in progress %}
                         {% component "unfold/components/progress.html" with title=metric.title description=metric.description value=metric.value %}{% endcomponent %}
@@ -106,16 +91,21 @@
 
             {% component "unfold/components/flex.html" with class="gap-8 lg:w-1/2" col=1 %}
                 {% for stats in performance %}
-                    {% component "unfold/components/card.html" %}
+                    {% trans stats.metric.key as label %}
+                    {% component "unfold/components/card.html" with label=label footer=stats.footer %}
                         {% component "unfold/components/text.html" %}
                             {{ stats.title }}
-                        {% endcomponent %}   
+                        {% endcomponent %}
 
                         {% component "unfold/components/title.html" with class="mb-8" %}
-                            {{ stats.metric }}
-                        {% endcomponent %}                                  
-
-                        {% component "unfold/components/chart/line.html" with data=stats.chart.data %}{% endcomponent %}
+                            {% for key, value in stats.metric.items %}
+                                {% if key == stats.param %}
+                                    {% money_localize value 'EUR' %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endcomponent %}
+                      
+                        {% component "unfold/components/chart/bar.html" with data=stats.chart %}{% endcomponent %}
                     {% endcomponent %}
                 {% endfor %}
             {% endcomponent %}        

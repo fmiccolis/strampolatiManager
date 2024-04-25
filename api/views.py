@@ -8,9 +8,9 @@ logger = logging.getLogger("custom")
 
 def yearDetail(request, year):
     logger.info(year)
-    return render(request, 'admin/year_detail.html', {})
+    return render(request, 'admin/index.html', {})
 
 
 def monthDetail(request, year, month):
     logger.info(year, month)
-    return render(request, 'admin/month_detail.html', {})
+    return render(request, 'admin/index.html', {})

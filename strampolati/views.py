@@ -1,13 +1,9 @@
 import datetime
 import json
-import random
+import calendar
 import logging
-from collections import OrderedDict
-from decimal import Decimal
 
 from dateutil.relativedelta import relativedelta
-from django.db.models import Count, Sum, F, ExpressionWrapper, FloatField, Min
-from django.db.models.functions.datetime import ExtractMonth, ExtractYear, ExtractDay, TruncDate
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
@@ -15,7 +11,7 @@ from django.views.generic import RedirectView
 from django.utils import timezone
 from djmoney.money import Money
 
-from api.models import Event, Expense, User
+from api.models import Event, Expense
 
 logger = logging.getLogger("custom")
 
@@ -26,268 +22,239 @@ class HomeView(RedirectView):
 
 def getLastXMonths(start_date, months=24) -> []:
     combinations = list()
-    first_date = start_date - relativedelta(months=months-1)
+    first_date = start_date - relativedelta(months=months - 1)
     for i in range(months):
         previous_date = first_date + relativedelta(months=i)
         combinations.append([previous_date.month, previous_date.year])
     return combinations
 
 
+def ymdToFilter(y, m, d, param) -> dict:
+    instance_filter = dict()
+    if y is not None:
+        instance_filter[f'{param}__year'] = y
+    if m is not None:
+        instance_filter[f'{param}__month'] = m
+    if d is not None:
+        instance_filter[f'{param}__day'] = d
+    return instance_filter
+
+
 def dashboard_callback(request, context):
-    """
-    Mi serve:
-    - eventi fatti nel periodo (eventi da fare)
-    - giorno migliore e quanti soldi fatti in quel giorno
-    - pagamento medio socio per evento
-
-    - entrate totali
-    - costi esterni
-    - valore aggiunto
-    - costo degli stipendi
-    - EBITDA
-    - valore degli ammortamenti e delle svalutazioni
-    - EBIT
-    - FONDO CASSA
-    """
-
+    year = request.GET.get('year', None)
+    month = request.GET.get('month', None)
     start = Event.objects.earliest('start_date').start_date
     now = timezone.now()
 
-    combinations = getLastXMonths(now, 24)
+    events = Event.objects.all()
+    expenses = Expense.objects.filter(depreciable=False)
+    keys = [[int(start.year + y), None, None] for y in range(0, now.year - start.year + 1)]
+    table_headers = ["Anno", "Entrate", "Costi esterni", "Valore aggiunto", "Stipendi", "Ebitda", "Ammortamenti e svalutazioni", "Ebit", "Fondo cassa"]
+    if year is not None:
+        events = events.filter(start_date__year=year)
+        expenses = expenses.filter(date__year=year)
+        keys = [[int(year), int(da), None] for da in range(1, 13)]
+        table_headers[0] = "Mese"
+        if month is not None:
+            events = events.filter(start_date__month=month)
+            expenses = expenses.filter(date__month=month)
+            keys = [[int(year), int(month), int(day)] for day in range(1, calendar.monthrange(int(year), int(month))[1]+1)]
+            table_headers = ["Data"]
+
+    period_earnings = sum([evt.gross for evt in events])
+    period_costs = sum([exp.amount.amount for exp in expenses])
+    period_viewer_costs = sum([evt.agents_cost()[1] for evt in events])
+    period_external_costs = period_costs + period_viewer_costs
+    period_events = events.count()
+    period_cash_fund = 0
+    kpi = [
+        {
+            "title": "Ricavi totali",
+            "metric": Money(period_earnings, "EUR"),
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        },
+        {
+            "title": "Uscite totali",
+            "metric": Money(period_external_costs, "EUR"),
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        },
+        {
+            "title": "Eventi totali",
+            "metric": period_events,
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        },
+        {
+            "title": "Fondo cassa",
+            "metric": Money(period_cash_fund, "EUR"),
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        }
+    ]
+
     positive = list()
     negative = list()
     average_percentage = list()
     average = list()
     max_gross = 0
     labels = list()
-    for [month, year] in combinations:
-        labels.append(datetime.date(year, month, 1).strftime("%B %Y"))
-        events_in_comb = Event.objects.filter(start_date__month=month, start_date__year=year)
-        expenses_in_comb = Expense.objects.filter(date__month=month, date__year=year)
-        gross = 0
-        expenses = 0
-        for event in events_in_comb:
-            gross += float(event.gross)
-        for expense in expenses_in_comb:
-            expenses += float(expense.amount.amount)
-        max_gross = max(max_gross, gross)
-        positive.append(gross)
-        negative.append(-expenses)
-        average_percentage.append((1-(expenses/gross))*100 if gross != 0 else 0)
-
-    logger.info(labels)
-    for perc in average_percentage:
-        average.append((perc*max_gross)/100)
-
-    combinations = list()
-    uniques_comb = list()
-    for ccc in range((now - start).days):
-        [month, year] = (start + datetime.timedelta(ccc)).strftime(r"%m-%Y").split("-")
-        if f"{year}" not in uniques_comb:
-            uniques_comb.append(f"{year}")
-            combinations.append({"year": year})
-        if f"{month}|{year}" not in uniques_comb:
-            uniques_comb.append(f"{month}|{year}")
-            combinations.append({"month": month, "year": year})
-
-    table_content = list()
-    total_earnings = 0
-    total_costs = 0
-    total_events = 0
-    for comb in combinations:
-        events_in_comb = Event.objects.filter(start_date__year=comb["year"])
-        expenses_in_comb = Expense.objects.filter(date__year=comb["year"])
-        if comb.get("month", None) is not None:
-            events_in_comb = events_in_comb.filter(start_date__month=comb["month"])
-            expenses_in_comb = expenses_in_comb.filter(date__month=comb["month"])
-        if events_in_comb.exists():
-            events_in_comb = events_in_comb.exclude(paid=None)
-            before_today = events_in_comb.filter(start_date__lte=now)
-            after_today = events_in_comb.filter(start_date__gt=now)
-
-            total_events += events_in_comb.count() if comb.get("month", None) is not None else 0
-            count = events_in_comb.count()
-            dones = events_in_comb.filter(start_date__lte=now).count()
-            to_dos = count - dones
-            money_make = sum([raw["g"] for raw in events_in_comb.annotate(
-                g=(F('payment') * Count('agents')) + F('busker') + F('extra')).values('g')])
-            total_earnings += money_make if comb.get("month", None) is not None else 0
-            in_the_period_expenses = expenses_in_comb.filter(depreciable=False).aggregate(Sum('amount'))[
-                                         'amount__sum'] or 0
-            viewer_expenses = sum([raw.agents_cost()[1] for raw in events_in_comb])
-            external_costs = in_the_period_expenses + viewer_expenses
-            total_costs += external_costs if comb.get("month", None) is not None else 0
-            added_value = money_make - external_costs
-            paychecks = sum([raw.agents_cost()[0] for raw in events_in_comb])
-            ebitda = added_value - paychecks
-            ammor = (expenses_in_comb.filter(depreciable=True).aggregate(Sum('amount'))['amount__sum'] or 0) / Decimal(
-                5)
-            ebit = ebitda - ammor
-            final_cash_fund = 0
-
-            table_content.append({
-                "key": (_(datetime.date(1900, int(comb["month"]), 1).strftime('%B')) if comb.get("month",
-                                                                                                 None) is not None else "") + " " + comb.get(
-                    "year"),
-                "gross": money_make,
-                "external_cost": external_costs,
-                "added_value": added_value,
-                "paychecks": paychecks,
-                "ebitda": ebitda,
-                "ammor": ammor,
-                "ebit": ebit,
-                "cash_fund": final_cash_fund,
-                "display": "none" if comb.get("month", None) is not None else "table-row"
-            })
-
-    WEEKDAYS = [
-        "Mon",
-        "Tue",
-        "Wed",
-        "Thu",
-        "Fri",
-        "Sat",
-        "Sun",
-    ]
-
-    # positive = [[1, random.randrange(8, 28)] for i in range(1, 28)]
-    # negative = [[-1, -random.randrange(8, 28)] for i in range(1, 28)]
-    # average = [r[1] - random.randint(3, 5) for r in positive]
-    performance_positive = [[1, random.randrange(8, 28)] for i in range(1, 28)]
-    performance_negative = [[-1, -random.randrange(8, 28)] for i in range(1, 28)]
-
+    participation = dict()
     progress = list()
     max_num = 0
-    for agent in User.objects.all():
-        if agent.groups.count() > 0:
-            events_count = Event.objects.filter(agents__in=[agent]).count() or 0
-            max_num = max(max_num, events_count)
-            progress.append({
-                "title": agent.nominativo(),
-                "description": f"{events_count}",
-                "value": events_count
-            })
-    for pro in progress:
-        raw_value = pro["value"]
-        pro["value"] = round((100*raw_value)/max_num)
+    table_content = list()
+    for [year, month, day] in keys:
+        label = year
+        if month is not None:
+            label_date = datetime.date(year, month, 1)
+            label_format = "%B %Y"
+            if day is not None:
+                label_date = datetime.date(year, month, day)
+                label_format = "%d %B %Y"
+            label = label_date.strftime(label_format)
+        labels.append(label)
+        event_filter = ymdToFilter(year, month, day, "start_date")
+        logger.info(event_filter)
+        events_in_comb = events.filter(**event_filter)
+        expense_filter = ymdToFilter(year, month, day, "date")
+        expenses_in_comb = expenses.filter(**expense_filter)
+        gross = 0
+        exp = 0
+        paychecks = 0
+        for event in events_in_comb:
+            gross += float(event.gross)
+            exp += float(event.agents_cost()[1])
+            paychecks += float(event.agents_cost()[0])
+            for agent in event.agents.all():
+                exists = participation.get(agent.nominativo(), None)
+                if exists is None:
+                    participation[agent.nominativo()] = 0
+                participation[agent.nominativo()] += 1
+                max_num = max(max_num, participation[agent.nominativo()])
+        for expense in expenses_in_comb:
+            exp += float(expense.amount.amount)
+        max_gross = max(max_gross, gross)
+        positive.append(gross)
+        negative.append(-exp)
+        average_percentage.append((1 - (exp / gross)) * 100 if gross != 0 else 0)
+        # ammor = (expenses_in_comb.filter(depreciable=True).aggregate(Sum('amount'))['amount__sum'] or 0) / Decimal(
+        #     5)
+        # ebit = ebitda - ammor
+        # final_cash_fund = 0
+        table_content.append({
+            "link": f"?year={year}{'&month=' + str(month) if month is not None else ''}" if events_in_comb.count() > 0 or expenses_in_comb.count() > 0 else "",
+            "key": str(label),
+            "gross": gross,
+            "external_cost": exp,
+            "added_value": gross - exp,
+            "paychecks": paychecks,
+            "ebitda": gross - exp - paychecks,
+            "ammor": 0,
+            "ebit": 0,
+            "cash_fund": 0
+        })
 
-    context.update(
-        {
-            "navigation": [
-                {"title": _("Dashboard"), "link": "/", "active": True},
-                {"title": _("Metrics"), "link": "#"},
-                {"title": _("Settings"), "link": reverse("admin:api_setting_changelist")},
-            ],
-            "filters": [
-                {"title": _("All"), "link": "#", "active": True},
-                {
-                    "title": _("New"),
-                    "link": reverse("admin:api_event_add"),
-                },
-            ],
-            "kpi": [
-                {
-                    "title": "Ricavi totali",
-                    "metric": Money(total_earnings, 'EUR'),
-                    "footer": mark_safe(
-                        '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
-                    ),
-                },
-                {
-                    "title": "Uscite totali",
-                    "metric": Money(total_costs, 'EUR'),
-                    "footer": mark_safe(
-                        '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
-                    ),
-                },
-                {
-                    "title": "Eventi totali",
-                    "metric": total_events,
-                    "footer": mark_safe(
-                        '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
-                    ),
-                },
-                {
-                    "title": "Fondo cassa",
-                    "metric": Money(0, 'EUR'),
-                    "footer": mark_safe(
-                        '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
-                    ),
-                },
-            ],
-            "progress": progress,
-            "chart": {
-                "settings": {
-                    "title": _(f"Earnings and expenses in the last {len(positive)} months")
-                },
-                "data": json.dumps({
-                    "labels": labels,
-                    "datasets": [
-                        {
-                            "label": "Percentuale valore aggiunto",
-                            "type": "line",
-                            "data": average,
-                            "backgroundColor": "#f0abfc",
-                            "borderColor": "#f0abfc",
-                        },
-                        {
-                            "label": "Entrate",
-                            "data": positive,
-                            "backgroundColor": "#9333ea",
-                        },
-                        {
-                            "label": "Uscite",
-                            "data": negative,
-                            "backgroundColor": "#f43f5e",
-                        },
-                    ],
-                })
+    # for perc in average_percentage:
+    #    average.append((perc * max_gross) / 100)
+
+    for key, value in participation.items():
+        progress.append({
+            "title": key,
+            "description": value,
+            "value": round((100 * value) / max_num)
+        })
+
+    context.update({
+        "navigation": [
+            {"title": _("Dashboard"), "link": "/", "active": True},
+            {"title": _("Metrics"), "link": "#"},
+            {"title": _("Settings"), "link": reverse("admin:api_setting_changelist")},
+        ],
+        "filters": [
+            {"title": _("All"), "link": "#", "active": True},
+            {
+                "title": _("New"),
+                "link": reverse("admin:api_event_add"),
             },
-            "performance": [
-                {
-                    "title": _("Last week revenue"),
-                    "metric": "$1,234.56",
-                    "footer": mark_safe(
-                        '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
-                    ),
-                    "chart": json.dumps(
-                        {
-                            "labels": [WEEKDAYS[day % 7] for day in range(1, 28)],
-                            "datasets": [
-                                {"data": performance_positive, "borderColor": "#9333ea"}
-                            ],
-                        }
-                    ),
-                },
-                {
-                    "title": _("Last week expenses"),
-                    "metric": "$1,234.56",
-                    "footer": mark_safe(
-                        '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
-                    ),
-                    "chart": json.dumps(
-                        {
-                            "labels": [WEEKDAYS[day % 7] for day in range(1, 28)],
-                            "datasets": [
-                                {"data": performance_negative, "borderColor": "#f43f5e"}
-                            ],
-                        }
-                    ),
-                },
-            ],
-            "table_headers": [
-                "Anno/Mese",
-                "Entrate",
-                "Costi esterni",
-                "Valore aggiunto",
-                "Stipendi",
-                "Ebitda",
-                "Ammortamenti e svalutazioni",
-                "Ebit",
-                "Fondo cassa"
-            ],
-            "table_content": table_content
+        ],
+        "kpi": kpi,
+        "progress": progress,
+        "chart": {
+            "settings": {
+                "title": _(f"Earnings and expenses in the last {len(positive)} months")
+            },
+            "data": json.dumps({
+                "labels": labels,
+                "datasets": [
+                    {
+                        "label": "Percentuale valore aggiunto",
+                        "type": "line",
+                        "data": average,
+                        "backgroundColor": "#f0abfc",
+                        "borderColor": "#f0abfc",
+                    },
+                    {
+                        "label": "Entrate",
+                        "data": positive,
+                        "backgroundColor": "#9333ea",
+                    },
+                    {
+                        "label": "Uscite",
+                        "data": negative,
+                        "backgroundColor": "#f43f5e",
+                    },
+                ],
+            })
         },
-    )
+        "performance": [
+            {
+                "title": _("Best grossing year"),
+                "metric": max(table_content, key=lambda x: x['gross']),
+                "param": "gross",
+                "footer": mark_safe(
+                    '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+                ),
+                "chart": json.dumps(
+                    {
+                        "labels": [year['key'] for year in table_content],
+                        "datasets": [
+                            {
+                                "data": [float(cont['gross']) for cont in table_content],
+                                "borderColor": "#f43f5e",
+                                "backgroundColor": "#9333ea"
+                            }
+                        ],
+                    }
+                ),
+            },
+            {
+                "title": _("Worst expense year"),
+                "metric": max(table_content, key=lambda x: x['external_cost']),
+                "param": "external_cost",
+                "footer": mark_safe(
+                    '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+                ),
+                "chart": json.dumps(
+                    {
+                        "labels": [year['key'] for year in table_content],
+                        "datasets": [
+                            {
+                                "data": [float(cont['external_cost']) for cont in table_content],
+                                "borderColor": "#9333ea",
+                                "backgroundColor": "#f43f5e"
+                            }
+                        ],
+                    }
+                ),
+            },
+        ],
+        "table_headers": table_headers,
+        "table_content": table_content
+    })
 
     return context
