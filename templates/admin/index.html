@@ -21,62 +21,74 @@
 
             {% component "unfold/components/navigation.html" with class="ml-auto" items=filters %}{% endcomponent %}
         {% endcomponent %}
-
-        {% component "unfold/components/flex.html" with class="gap-8 mb-8 flex-col lg:flex-row" %}
+      
+        <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
             {% for stats in kpi %}
-                {% trans "Total" as label %}
-                {% component "unfold/components/card.html" with class="lg:w-1/4" label=label footer=stats.footer %}
+                {% component "unfold/components/card.html" with label="Period" footer=stats.footer %}
                     {% component "unfold/components/text.html" %}
                         {{ stats.title }}
-                    {% endcomponent %}   
+                    {% endcomponent %}
 
                     {% component "unfold/components/title.html" %}
                         {{ stats.metric }}
-                    {% endcomponent %}                                  
+                    {% endcomponent %}
                 {% endcomponent %}
             {% endfor %}
-        {% endcomponent %}
+        </div>
         
         {% component "unfold/components/card.html" with class="mb-8" title=chart.settings.title %}
             {% component "unfold/components/chart/bar.html" with data=chart.data height=320 %}{% endcomponent %}
         {% endcomponent %}
-        
-        {% trans "Report" as title %}
-        {% component "unfold/components/card.html" with class="mb-8" title=title %}
-            <div class="w-full">
-                <table class="border-gray-200 border-spacing-none border-separate text-gray-700 w-full dark:text-gray-400 lg:border lg:rounded-md lg:shadow-sm lg:dark:border-gray-800">
-                  <thead class="hidden lg:table-header-group">
+  
+        {% component "unfold/components/flex.html" with class="gap-8 mb-8 flex-col lg:flex-row" %}
+            <table id="result_list" class="border-gray-200 border-spacing-none border-separate text-gray-700 w-full dark:text-gray-400 lg:border lg:rounded-md lg:shadow-sm lg:dark:border-gray-800">
+                <thead class="hidden lg:table-header-group">
                     <tr>
-                      {% for header in table_headers %}
-                        <th class="align-middle font-medium px-3 py-2 text-left text-gray-400 text-sm" scope="col">
-                          <div class="flex items-center">
-                            <div class="text">
-                              <span>{{ header|capfirst }}</span>
-                            </div>
-                          </div>
-                        </th>
-                      {% endfor %}
+                        {% for header in table_headers %}
+                            <th class="align-middle font-medium px-3 py-2 text-left text-gray-400 text-sm  class=" sortable="" column-name="" sorted="" ascending="" scope="col">
+                                <div class="flex items-center">
+                                    <div class="text">
+                                        {{ header|capfirst }}
+                                    </div>
+                                </div>
+                            </th>
+                        {% endfor %}
                     </tr>
-                  </thead>
-                  <tbody>
+                </thead>
+                <tbody>
                     {% for row in table_content %}
-                      <tr class="{% cycle '' 'bg-gray-50 dark:bg-white/[.02]' %} block border mb-3 rounded-md shadow-sm lg:table-row lg:border-none lg:mb-0 lg:shadow-none dark:border-gray-800">
-                        <td>
-                          <a href="{% url 'admin:index' %}{{ row.link }}">{{ row.key }}</a>
-                        </td>
-                        <td>{% money_localize row.gross 'EUR' %}</td>
-                        <td>{% money_localize row.external_cost 'EUR' %}</td>
-                        <td>{% money_localize row.added_value 'EUR' %}</td>
-                        <td>{% money_localize row.paychecks 'EUR' %}</td>
-                        <td>{% money_localize row.ebitda 'EUR' %}</td>
-                        <td>{% money_localize row.ammor 'EUR' %}</td>
-                        <td>{% money_localize row.ebit 'EUR' %}</td>
-                        <td>{% money_localize row.cash_fund 'EUR' %}</td>
-                      </tr>
+                        <tr class=" block border mb-3 rounded-md shadow-sm lg:table-row lg:border-none lg:mb-0 lg:shadow-none dark:border-gray-800">
+                            <th class="field-name align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="anno">
+                                <a href="{% url 'admin:index' %}{{ row.link }}" class="text-gray-700 dark:text-gray-200">{{ row.key }}</a>
+                            </th>
+                            <td class="field-valid_from align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800 nowrap" data-label="gross">
+                                {% money_localize row.gross 'EUR' %}
+                            </td>
+                            <td class="field-value align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="costi esterni">
+                                {% money_localize row.external_cost 'EUR' %}
+                            </td>
+                            <td class="field-value align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="valore aggiunto">
+                                {% money_localize row.added_value 'EUR' %}
+                            </td>
+                            <td class="field-value align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="stipendi">
+                                {% money_localize row.paychecks 'EUR' %}
+                            </td>
+                            <td class="field-value align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="ebitda">
+                                {% money_localize row.ebitda 'EUR' %}
+                            </td>
+                            <td class="field-value align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="ammortamenti e svalutazioni">
+                                {% money_localize row.ammor 'EUR' %}
+                            </td>
+                            <td class="field-value align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="ebit">
+                                {% money_localize row.ebit 'EUR' %}
+                            </td>
+                            <td class="field-value align-middle flex border-t border-gray-200 font-normal px-3 py-2 text-left text-sm before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:mr-auto before:text-gray-500 first:border-t-0 dark:before:text-gray-400 lg:before:hidden lg:first:border-t lg:py-3 lg:table-cell dark:border-gray-800" data-label="fondo cassa">
+                                {% money_localize row.cash_fund 'EUR' %}
+                            </td>
+                        </tr>
                     {% endfor %}
-                  </tbody>
-                </table>
-              </div>
+                </tbody>
+            </table>
         {% endcomponent %}
 
         {% component "unfold/components/flex.html" with class="gap-8 mb-8 flex-col lg:flex-row" %}

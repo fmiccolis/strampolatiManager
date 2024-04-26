@@ -25,7 +25,6 @@ from strampolati.views import HomeView
 
 urlpatterns = [
     path('', HomeView.as_view()),
-    path('manager/', include("api.urls")),
     path('manager/', admin.site.urls),
     path("__debug__/", include("debug_toolbar.urls")),
     path('log_viewer/', include('log_viewer.urls', namespace='logs')),

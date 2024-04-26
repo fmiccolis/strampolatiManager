@@ -4,6 +4,7 @@ import calendar
 import logging
 
 from dateutil.relativedelta import relativedelta
+from django.db.models import Sum
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
@@ -18,15 +19,6 @@ logger = logging.getLogger("custom")
 
 class HomeView(RedirectView):
     pattern_name = "admin:index"
-
-
-def getLastXMonths(start_date, months=24) -> []:
-    combinations = list()
-    first_date = start_date - relativedelta(months=months - 1)
-    for i in range(months):
-        previous_date = first_date + relativedelta(months=i)
-        combinations.append([previous_date.month, previous_date.year])
-    return combinations
 
 
 def ymdToFilter(y, m, d, param) -> dict:
@@ -47,26 +39,32 @@ def dashboard_callback(request, context):
     now = timezone.now()
 
     events = Event.objects.all()
-    expenses = Expense.objects.filter(depreciable=False)
+    expenses = Expense.objects.all()
     keys = [[int(start.year + y), None, None] for y in range(0, now.year - start.year + 1)]
     table_headers = ["Anno", "Entrate", "Costi esterni", "Valore aggiunto", "Stipendi", "Ebitda", "Ammortamenti e svalutazioni", "Ebit", "Fondo cassa"]
+    periodicity = "years"
+    subtitle = None
     if year is not None:
         events = events.filter(start_date__year=year)
         expenses = expenses.filter(date__year=year)
         keys = [[int(year), int(da), None] for da in range(1, 13)]
         table_headers[0] = "Mese"
+        periodicity = "months"
+        subtitle = year
         if month is not None:
             events = events.filter(start_date__month=month)
             expenses = expenses.filter(date__month=month)
             keys = [[int(year), int(month), int(day)] for day in range(1, calendar.monthrange(int(year), int(month))[1]+1)]
-            table_headers = ["Data"]
+            table_headers[0] = "Data"
+            periodicity = "days"
+            subtitle = datetime.date(int(year), int(month), 1).strftime("%B %Y")
 
     period_earnings = sum([evt.gross for evt in events])
-    period_costs = sum([exp.amount.amount for exp in expenses])
+    period_costs = sum([exp.amount.amount for exp in expenses.filter(depreciable=False)])
     period_viewer_costs = sum([evt.agents_cost()[1] for evt in events])
     period_external_costs = period_costs + period_viewer_costs
     period_events = events.count()
-    period_cash_fund = 0
+    period_cash_fund = events.latest("start_date").cash_fund
     kpi = [
         {
             "title": "Ricavi totali",
@@ -123,6 +121,8 @@ def dashboard_callback(request, context):
         events_in_comb = events.filter(**event_filter)
         expense_filter = ymdToFilter(year, month, day, "date")
         expenses_in_comb = expenses.filter(**expense_filter)
+        expenses_not_depreciable = expenses_in_comb.filter(depreciable=False)
+        expenses_depreciable = expenses_in_comb.filter(depreciable=True)
         gross = 0
         exp = 0
         paychecks = 0
@@ -136,28 +136,29 @@ def dashboard_callback(request, context):
                     participation[agent.nominativo()] = 0
                 participation[agent.nominativo()] += 1
                 max_num = max(max_num, participation[agent.nominativo()])
-        for expense in expenses_in_comb:
+        for expense in expenses_not_depreciable:
             exp += float(expense.amount.amount)
         max_gross = max(max_gross, gross)
         positive.append(gross)
         negative.append(-exp)
         average_percentage.append((1 - (exp / gross)) * 100 if gross != 0 else 0)
-        # ammor = (expenses_in_comb.filter(depreciable=True).aggregate(Sum('amount'))['amount__sum'] or 0) / Decimal(
-        #     5)
-        # ebit = ebitda - ammor
-        # final_cash_fund = 0
-        table_content.append({
-            "link": f"?year={year}{'&month=' + str(month) if month is not None else ''}" if events_in_comb.count() > 0 or expenses_in_comb.count() > 0 else "",
-            "key": str(label),
-            "gross": gross,
-            "external_cost": exp,
-            "added_value": gross - exp,
-            "paychecks": paychecks,
-            "ebitda": gross - exp - paychecks,
-            "ammor": 0,
-            "ebit": 0,
-            "cash_fund": 0
-        })
+        added_value = gross - exp
+        ebitda = added_value - paychecks
+        ammor = float(expenses_depreciable.aggregate(Sum('amount'))['amount__sum'] or 0) / 5
+        ebit = ebitda - ammor
+        if expenses_in_comb.count() > 0 or events_in_comb.count() > 0:
+            table_content.append({
+                "link": f"?year={year}{'&month=' + str(month) if month is not None else ''}",
+                "key": str(label),
+                "gross": gross,
+                "external_cost": exp,
+                "added_value": added_value,
+                "paychecks": paychecks,
+                "ebitda": ebitda,
+                "ammor": ammor,
+                "ebit": ebit,
+                "cash_fund": events_in_comb.latest("start_date").cash_fund
+            })
 
     # for perc in average_percentage:
     #    average.append((perc * max_gross) / 100)
@@ -170,6 +171,7 @@ def dashboard_callback(request, context):
         })
 
     context.update({
+        "subtitle": subtitle,
         "navigation": [
             {"title": _("Dashboard"), "link": "/", "active": True},
             {"title": _("Metrics"), "link": "#"},
@@ -186,7 +188,7 @@ def dashboard_callback(request, context):
         "progress": progress,
         "chart": {
             "settings": {
-                "title": _(f"Earnings and expenses in the last {len(positive)} months")
+                "title": _(f"Earnings and expenses in the last {len(positive)} {periodicity}")
             },
             "data": json.dumps({
                 "labels": labels,
@@ -213,7 +215,7 @@ def dashboard_callback(request, context):
         },
         "performance": [
             {
-                "title": _("Best grossing year"),
+                "title": _(f"Best grossing {periodicity}"),
                 "metric": max(table_content, key=lambda x: x['gross']),
                 "param": "gross",
                 "footer": mark_safe(
@@ -233,7 +235,7 @@ def dashboard_callback(request, context):
                 ),
             },
             {
-                "title": _("Worst expense year"),
+                "title": _(f"Worst expense {periodicity}"),
                 "metric": max(table_content, key=lambda x: x['external_cost']),
                 "param": "external_cost",
                 "footer": mark_safe(
