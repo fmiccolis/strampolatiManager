@@ -461,6 +461,13 @@ class Event(TimeStampedModel):
         null=True,
         blank=True
     )
+    calendar_id = models.CharField(
+        verbose_name=_('name'),
+        max_length=100,
+        unique=True,
+        null=True,
+        blank=True
+    )
 
     @cached_property
     def get_valid_settings(self):

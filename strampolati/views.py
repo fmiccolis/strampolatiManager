@@ -3,7 +3,6 @@ import json
 import calendar
 import logging
 
-from dateutil.relativedelta import relativedelta
 from django.db.models import Sum
 from django.urls import reverse
 from django.utils.safestring import mark_safe
@@ -117,7 +116,6 @@ def dashboard_callback(request, context):
             label = label_date.strftime(label_format)
         labels.append(label)
         event_filter = ymdToFilter(year, month, day, "start_date")
-        logger.info(event_filter)
         events_in_comb = events.filter(**event_filter)
         expense_filter = ymdToFilter(year, month, day, "date")
         expenses_in_comb = expenses.filter(**expense_filter)
