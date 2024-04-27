@@ -40,7 +40,8 @@ def dashboard_callback(request, context):
     events = Event.objects.all()
     expenses = Expense.objects.all()
     keys = [[int(start.year + y), None, None] for y in range(0, now.year - start.year + 1)]
-    table_headers = ["Anno", "Entrate", "Costi esterni", "Valore aggiunto", "Stipendi", "Ebitda", "Ammortamenti e svalutazioni", "Ebit", "Fondo cassa"]
+    table_headers = ["Anno", "Entrate", "Costi esterni", "Valore aggiunto", "Stipendi", "Ebitda",
+                     "Ammortamenti e svalutazioni", "Ebit", "Fondo cassa"]
     periodicity = "years"
     subtitle = None
     if year is not None:
@@ -53,7 +54,8 @@ def dashboard_callback(request, context):
         if month is not None:
             events = events.filter(start_date__month=month)
             expenses = expenses.filter(date__month=month)
-            keys = [[int(year), int(month), int(day)] for day in range(1, calendar.monthrange(int(year), int(month))[1]+1)]
+            keys = [[int(year), int(month), int(day)] for day in
+                    range(1, calendar.monthrange(int(year), int(month))[1] + 1)]
             table_headers[0] = "Data"
             periodicity = "days"
             subtitle = datetime.date(int(year), int(month), 1).strftime("%B %Y")
@@ -64,7 +66,7 @@ def dashboard_callback(request, context):
     period_external_costs = period_costs + period_viewer_costs
     period_events = events.count()
     period_cash_fund = events.latest("start_date").cash_fund
-    kpi = [
+    kpi = [[
         {
             "title": "Ricavi totali",
             "metric": Money(period_earnings, "EUR"),
@@ -78,7 +80,8 @@ def dashboard_callback(request, context):
             "footer": mark_safe(
                 '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
             )
-        },
+        }
+    ], [
         {
             "title": "Eventi totali",
             "metric": period_events,
@@ -93,7 +96,7 @@ def dashboard_callback(request, context):
                 '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
             )
         }
-    ]
+    ]]
 
     positive = list()
     negative = list()

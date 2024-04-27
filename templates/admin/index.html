@@ -22,17 +22,21 @@
             {% component "unfold/components/navigation.html" with class="ml-auto" items=filters %}{% endcomponent %}
         {% endcomponent %}
       
-        <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
-            {% for stats in kpi %}
-                {% component "unfold/components/card.html" with label="Period" footer=stats.footer %}
-                    {% component "unfold/components/text.html" %}
-                        {{ stats.title }}
-                    {% endcomponent %}
-
-                    {% component "unfold/components/title.html" %}
-                        {{ stats.metric }}
-                    {% endcomponent %}
-                {% endcomponent %}
+        <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 2rem;">
+            {% for row in kpi %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+                    {% for stats in row %}
+                        {% component "unfold/components/card.html" with label="Period" footer=stats.footer %}
+                            {% component "unfold/components/text.html" %}
+                                {{ stats.title }}
+                            {% endcomponent %}
+        
+                            {% component "unfold/components/title.html" %}
+                                {{ stats.metric }}
+                            {% endcomponent %}
+                        {% endcomponent %}
+                    {% endfor %}
+                </div>
             {% endfor %}
         </div>
         

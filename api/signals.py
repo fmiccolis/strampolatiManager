@@ -1,4 +1,6 @@
 import logging
+
+import jwt
 import requests
 from django.conf import settings
 
@@ -23,6 +25,9 @@ async def create_calendar_event(sender, instance: Event, created, **kwargs):
             "data": serialized,
             "source": "development" if settings.DEBUG else "production"
         }
-        gas_response = requests.post('https://script.google.com/macros/s/AKfycbzJKsrJNsS8hiOHNn2tWNFC0obvdrAAL5oG8XVOSMhLnTRtgijgIAE0-wwiDNakLw46/exec', data=payload)
+        with open('./static/keys/private.pem', 'r') as file:
+            private = file.read()
+        token = jwt.encode(payload, private, algorithm="RS256")
+        gas_response = requests.post('https://script.google.com/macros/s/AKfycbzJKsrJNsS8hiOHNn2tWNFC0obvdrAAL5oG8XVOSMhLnTRtgijgIAE0-wwiDNakLw46/exec', data=token)
 
 
