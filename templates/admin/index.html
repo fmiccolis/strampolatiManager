@@ -22,7 +22,7 @@
             {% component "unfold/components/navigation.html" with class="ml-auto" items=filters %}{% endcomponent %}
         {% endcomponent %}
       
-        <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 2rem;">
+        <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); gap: 2rem;">
             {% for row in kpi %}
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
                     {% for stats in row %}
@@ -125,6 +125,30 @@
                     {% endcomponent %}
                 {% endfor %}
             {% endcomponent %}        
-        {% endcomponent %}    
+        {% endcomponent %}
+      
+        {% component "unfold/components/separator.html" %}{% endcomponent %}
+      
+        {% component "unfold/components/title.html" with class="mb-8" %}
+          Medie
+        {% endcomponent %}
+      
+        <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
+            {% for row in averages %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+                    {% for stats in row %}
+                        {% component "unfold/components/card.html" with label="Period" footer=stats.footer %}
+                            {% component "unfold/components/text.html" %}
+                                {{ stats.title }}
+                            {% endcomponent %}
+        
+                            {% component "unfold/components/title.html" %}
+                                {{ stats.metric }}
+                            {% endcomponent %}
+                        {% endcomponent %}
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
     {% endcomponent %}
 {% endblock %}

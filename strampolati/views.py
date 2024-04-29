@@ -2,6 +2,7 @@ import datetime
 import json
 import calendar
 import logging
+from statistics import mean
 
 from django.db.models import Sum
 from django.urls import reverse
@@ -63,6 +64,12 @@ def dashboard_callback(request, context):
     period_earnings = sum([evt.gross for evt in events])
     period_costs = sum([exp.amount.amount for exp in expenses.filter(depreciable=False)])
     period_viewer_costs = sum([evt.agents_cost()[1] for evt in events])
+    period_avg_wait = round(mean([evt.pay_time for evt in events]))
+    period_avg_distance = round(mean([evt.distance for evt in events]))
+    period_avg_consumption = mean([evt.consumption for evt in events])
+    period_avg_payment = mean([evt.payment.amount for evt in events])
+    period_avg_extra = mean([evt.extra.amount for evt in events])
+    period_avg_busker = mean([evt.busker.amount for evt in events])
     period_external_costs = period_costs + period_viewer_costs
     period_events = events.count()
     period_cash_fund = events.latest("start_date").cash_fund
@@ -92,6 +99,52 @@ def dashboard_callback(request, context):
         {
             "title": "Fondo cassa",
             "metric": Money(period_cash_fund, "EUR"),
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        }
+    ]]
+
+    averages = [[
+        {
+            "title": "Tempo di attesa",
+            "metric": f"{period_avg_wait} giorni",
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        },
+        {
+            "title": "Distanza percorsa",
+            "metric": f"{period_avg_distance} km",
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        },
+        {
+            "title": "Consumo",
+            "metric": Money(period_avg_consumption, "EUR"),
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        }
+    ], [
+        {
+            "title": "Pagamento per evento",
+            "metric": Money(period_avg_payment, "EUR"),
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        },
+        {
+            "title": "Extra",
+            "metric": Money(period_avg_extra, "EUR"),
+            "footer": mark_safe(
+                '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
+            )
+        },
+        {
+            "title": "Cappello",
+            "metric": Money(period_avg_busker, "EUR"),
             "footer": mark_safe(
                 '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
             )
@@ -186,6 +239,7 @@ def dashboard_callback(request, context):
             },
         ],
         "kpi": kpi,
+        "averages": averages,
         "progress": progress,
         "chart": {
             "settings": {

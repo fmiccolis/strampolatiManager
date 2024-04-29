@@ -593,6 +593,14 @@ class Event(TimeStampedModel):
     def gross_per_hour(self):
         return self.gross/Decimal(self.hours_worked.total_seconds()/60/60)
 
+    @cached_property
+    def pay_time(self):
+        if self.sent is None:
+            return None
+        if self.paid is None:
+            return (timezone.now() - self.sent).days
+        return (self.paid - self.sent).days
+
     class Meta:
         db_table = 'event'
         verbose_name = 'event'
