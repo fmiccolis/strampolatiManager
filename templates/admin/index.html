@@ -127,28 +127,45 @@
             {% endcomponent %}        
         {% endcomponent %}
       
-        {% component "unfold/components/separator.html" %}{% endcomponent %}
-      
-        {% component "unfold/components/title.html" with class="mb-8" %}
-          Medie
-        {% endcomponent %}
-      
-        <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
-            {% for row in averages %}
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
-                    {% for stats in row %}
-                        {% component "unfold/components/card.html" with label="Period" footer=stats.footer %}
-                            {% component "unfold/components/text.html" %}
-                                {{ stats.title }}
-                            {% endcomponent %}
-        
-                            {% component "unfold/components/title.html" %}
-                                {{ stats.metric }}
-                            {% endcomponent %}
+        {% component "unfold/components/flex.html" with class="gap-8 mb-8 flex-col lg:flex-row" %}
+            {% trans "Notes" as title %}
+            {% component "unfold/components/card.html" with class="lg:w-1/2" title=title %}                
+                {% component "unfold/components/flex.html" with col=1 class="gap-2" %}
+                    {% for note in notes %}
+                        {% component "unfold/components/title.html" with class="relative" label=note.event %}
+                            {{ note.date }}
                         {% endcomponent %}
+                        {% component "unfold/components/text.html" %}
+                            <div style="overflow: hidden;display: -webkit-box;-webkit-line-clamp: 2;line-clamp: 2;-webkit-box-orient: vertical">{{ note.content|safe }}</div>
+                        {% endcomponent %}
+                        {% component "unfold/components/separator.html" %}{% endcomponent %}
+                    {% endfor %}
+                {% endcomponent %}
+            {% endcomponent %}
+
+            {% component "unfold/components/flex.html" with class="gap-8 lg:w-1/2" col=1 %}
+                {% component "unfold/components/title.html" with class="mb-8" %}
+                    Medie
+                {% endcomponent %}
+              
+                <div class="mb-8" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
+                    {% for row in averages %}
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+                            {% for stats in row %}
+                                {% component "unfold/components/card.html" with label="Period" footer=stats.footer %}
+                                    {% component "unfold/components/text.html" %}
+                                        {{ stats.title }}
+                                    {% endcomponent %}
+                
+                                    {% component "unfold/components/title.html" %}
+                                        {{ stats.metric }}
+                                    {% endcomponent %}
+                                {% endcomponent %}
+                            {% endfor %}
+                        </div>
                     {% endfor %}
                 </div>
-            {% endfor %}
-        </div>
+            {% endcomponent %}        
+        {% endcomponent %}        
     {% endcomponent %}
 {% endblock %}

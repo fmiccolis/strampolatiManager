@@ -12,7 +12,7 @@ from django.views.generic import RedirectView
 from django.utils import timezone
 from djmoney.money import Money
 
-from api.models import Event, Expense
+from api.models import Event, Expense, Note
 
 logger = logging.getLogger("custom")
 
@@ -40,6 +40,7 @@ def dashboard_callback(request, context):
 
     events = Event.objects.all()
     expenses = Expense.objects.all()
+    notes = Note.objects.all()
     keys = [[int(start.year + y), None, None] for y in range(0, now.year - start.year + 1)]
     table_headers = ["Anno", "Entrate", "Costi esterni", "Valore aggiunto", "Stipendi", "Ebitda",
                      "Ammortamenti e svalutazioni", "Ebit", "Fondo cassa"]
@@ -48,6 +49,7 @@ def dashboard_callback(request, context):
     if year is not None:
         events = events.filter(start_date__year=year)
         expenses = expenses.filter(date__year=year)
+        notes = notes.filter(date__year=year)
         keys = [[int(year), int(da), None] for da in range(1, 13)]
         table_headers[0] = "Mese"
         periodicity = "months"
@@ -55,12 +57,14 @@ def dashboard_callback(request, context):
         if month is not None:
             events = events.filter(start_date__month=month)
             expenses = expenses.filter(date__month=month)
+            notes = notes.filter(date__month=month)
             keys = [[int(year), int(month), int(day)] for day in
                     range(1, calendar.monthrange(int(year), int(month))[1] + 1)]
             table_headers[0] = "Data"
             periodicity = "days"
             subtitle = datetime.date(int(year), int(month), 1).strftime("%B %Y")
 
+    notes = notes.order_by("-date")
     period_earnings = sum([evt.gross for evt in events])
     period_costs = sum([exp.amount.amount for exp in expenses.filter(depreciable=False)])
     period_viewer_costs = sum([evt.agents_cost()[1] for evt in events])
@@ -119,22 +123,23 @@ def dashboard_callback(request, context):
             "footer": mark_safe(
                 '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
             )
-        },
+        }
+    ], [
         {
             "title": "Consumo",
             "metric": Money(period_avg_consumption, "EUR"),
             "footer": mark_safe(
                 '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
             )
-        }
-    ], [
+        },
         {
             "title": "Pagamento per evento",
             "metric": Money(period_avg_payment, "EUR"),
             "footer": mark_safe(
                 '<strong class="text-green-600 font-medium">+3.14%</strong>&nbsp;progress from last week'
             )
-        },
+        }
+    ], [
         {
             "title": "Extra",
             "metric": Money(period_avg_extra, "EUR"),
@@ -310,6 +315,7 @@ def dashboard_callback(request, context):
                 ),
             },
         ],
+        "notes": notes,
         "table_headers": table_headers,
         "table_content": table_content
     })

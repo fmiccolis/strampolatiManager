@@ -1,3 +1,8 @@
 <div class="font-medium text-2xl text-gray-700 dark:text-gray-200{% if class %} {{ class }}{% endif %}">
     {{ children }}
+    {% if label %}
+        <div class="absolute right-0 top-0">
+            {% include "unfold/helpers/label.html" with text=label type="primary" %}
+        </div>
+    {% endif %}
 </div>
